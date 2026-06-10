@@ -1,15 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router-dom'
-import {
-  Area,
-  AreaChart,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
-import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowRight, PiggyBank, Landmark } from 'lucide-react'
 import { db } from '../db/database'
 import { getCategoryByKey, getSubcategoryByKey } from '../data/categories'
 import {
@@ -17,7 +8,6 @@ import {
   formatDateRelative,
   getMonthStart,
   getMonthEnd,
-  isSameDay,
 } from '../lib/currency'
 import type { Transaction } from '../types'
 import * as LucideIcons from 'lucide-react'
@@ -86,170 +76,329 @@ export default function Dashboard() {
   const monthEnd = getMonthEnd(now)
 
   const settings = useLiveQuery(() => db.settings.toCollection().first(), [])
-
   const transactions = useLiveQuery(
-    () =>
-      db.transactions
-        .where('date')
-        .between(monthStart, monthEnd, true, true)
-        .reverse()
-        .sortBy('date'),
+    () => db.transactions.where('date').between(monthStart, monthEnd, true, true).reverse().sortBy('date'),
     [],
   )
+  const savingsGoals = useLiveQuery(() => db.savingsGoals.toArray(), [])
+  const pensionFunds = useLiveQuery(() => db.pensionFunds.toArray(), [])
 
-
-  const totalIncome = transactions?.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0) ?? 0
-  const totalExpenses = transactions?.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0) ?? 0
+  // Month totals
+  const totalIncome = transactions?.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) ?? 0
+  const totalExpenses = transactions?.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0) ?? 0
   const balance = totalIncome - totalExpenses
 
-  // Build daily cumulative balance data
-  const chartData = React.useMemo(() => {
-    if (!transactions) return []
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const today = now.getDate()
-    const data: { day: number; balance: number }[] = []
-    let runningBalance = 0
+  // Wealth totals
+  const totalSavings = savingsGoals?.reduce((s, g) => s + g.currentAmount, 0) ?? 0
+  const totalPension = pensionFunds?.reduce((s, f) => s + f.currentBalance, 0) ?? 0
 
-    for (let d = 1; d <= Math.min(daysInMonth, today); d++) {
-      const dayDate = new Date(now.getFullYear(), now.getMonth(), d)
-      const dayTxs = transactions.filter((t) => isSameDay(t.date, dayDate))
-      for (const tx of dayTxs) {
-        runningBalance += tx.type === 'income' ? tx.amount : -tx.amount
-      }
-      data.push({ day: d, balance: runningBalance })
-    }
-    return data
-  }, [transactions])
+  // Monthly progress
+  const spendingPct = totalIncome > 0 ? Math.min((totalExpenses / totalIncome) * 100, 100) : 0
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const daysPassed = now.getDate()
+  const daysLeft = daysInMonth - daysPassed
+  const avgDailySpend = daysPassed > 0 ? totalExpenses / daysPassed : 0
+  const projectedExpenses = Math.round(avgDailySpend * daysInMonth)
 
-  // Top expense category
+  // Top 2 active savings goals
+  const topGoals = React.useMemo(
+    () => (savingsGoals ?? []).filter(g => !g.isCompleted).slice(0, 2),
+    [savingsGoals],
+  )
+
+  // Top expense category this month
   const topCategory = React.useMemo(() => {
     if (!transactions) return null
     const expMap: Record<string, number> = {}
-    for (const t of transactions.filter((t) => t.type === 'expense')) {
+    for (const t of transactions.filter(t => t.type === 'expense')) {
       expMap[t.categoryKey] = (expMap[t.categoryKey] || 0) + t.amount
     }
     const sorted = Object.entries(expMap).sort(([, a], [, b]) => b - a)
     if (!sorted.length) return null
     const [key, amount] = sorted[0]
-    const cat = getCategoryByKey(key)
-    return { key, amount, cat }
+    return { key, amount, cat: getCategoryByKey(key) }
   }, [transactions])
 
-  const recent = transactions?.slice(0, 5) ?? []
+  const recent = transactions?.slice(0, 4) ?? []
 
-  // Russian date display
   const weekdays = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
   const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря']
+  const monthsNom = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
   const todayLabel = `${now.getDate()} ${months[now.getMonth()]}, ${weekdays[now.getDay()]}`
+
+  const greeting = now.getHours() < 12 ? 'Доброе утро' : now.getHours() < 18 ? 'Добрый день' : 'Добрый вечер'
+
+  const fundTypeLabel: Record<string, string> = {
+    pension: 'Пенсия',
+    keren_hishtalmut: 'Керен Хиштальмут',
+    investment: 'Инвестиции',
+  }
 
   return (
     <div className="min-h-screen bg-background pb-28">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div
-        className="pt-12 pb-6 px-4"
+        className="pt-12 pb-8 px-4"
         style={{ background: 'linear-gradient(135deg, #2D6CDF 0%, #7B5CF0 100%)' }}
       >
-        {/* Logo row */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <img src="/icon-192.png" alt="Скряга" className="w-8 h-8 rounded-xl" />
             <span className="text-white/90 text-sm font-semibold tracking-wide">Скряга</span>
           </div>
           <div className="flex gap-2">
-            <div className="w-9 h-9 rounded-full bg-primary/80 flex items-center justify-center border-2 border-white/40">
-              <span className="text-white text-sm font-bold">Ф</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-white/40"
+              style={{ background: settings?.member1Color ?? '#2D6CDF' }}>
+              <span className="text-white text-sm font-bold">
+                {(settings?.member1Name ?? 'Ф')[0]}
+              </span>
             </div>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-white/40" style={{ background: '#7B5CF0' }}>
-              <span className="text-white text-sm font-bold">А</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-white/40"
+              style={{ background: settings?.member2Color ?? '#7B5CF0' }}>
+              <span className="text-white text-sm font-bold">
+                {(settings?.member2Name ?? 'А')[0]}
+              </span>
             </div>
           </div>
         </div>
-        <div className="mb-3">
-          <h1 className="text-white text-xl font-bold">
-            {`${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${settings?.member1Name ?? 'Филипп'}!`}
-          </h1>
-          <p className="text-white/70 text-sm capitalize">{todayLabel}</p>
-        </div>
 
-        {/* Balance hero */}
-        <div className="text-center mt-2">
-          <p className="text-white/70 text-sm">Баланс за месяц</p>
-          <p
-            className="text-4xl font-bold mt-1"
-            style={{ color: balance >= 0 ? '#fff' : '#FF453A' }}
-          >
-            {balance >= 0 ? '+' : ''}{formatCurrency(balance)}
-          </p>
+        <p className="text-white/70 text-sm mb-0.5">{greeting},</p>
+        <h1 className="text-white text-2xl font-bold mb-0.5">
+          {settings?.member1Name ?? 'Филипп'} {settings?.member2Emoji ?? '👩'} {settings?.member2Name ?? 'Анастасия'}
+        </h1>
+        <p className="text-white/60 text-xs capitalize">{todayLabel}</p>
+      </div>
+
+      {/* ── Финансовый портрет ── */}
+      <div className="mx-4 -mt-5 mb-4">
+        <div className="bg-white rounded-2xl shadow-card overflow-hidden">
+          <div className="px-4 pt-4 pb-3 border-b border-black/5">
+            <p className="text-xs text-muted font-medium uppercase tracking-wide">Финансовый портрет</p>
+          </div>
+
+          {/* Three pillars */}
+          <div className="grid grid-cols-3 divide-x divide-black/5">
+            {/* Текущий баланс */}
+            <button
+              className="flex flex-col items-center py-4 px-2 gap-1 active:bg-black/5 transition-colors"
+              onClick={() => navigate('/transactions')}
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
+                style={{ background: balance >= 0 ? '#E8F8EE' : '#FFF0EF' }}>
+                <TrendingUp size={16} color={balance >= 0 ? '#30D158' : '#FF453A'} />
+              </div>
+              <p className="text-[10px] text-muted font-medium text-center leading-tight">Баланс<br/>месяца</p>
+              <p className="text-sm font-bold" style={{ color: balance >= 0 ? '#30D158' : '#FF453A' }}>
+                {balance >= 0 ? '+' : ''}{formatCurrency(balance)}
+              </p>
+            </button>
+
+            {/* Накопления */}
+            <button
+              className="flex flex-col items-center py-4 px-2 gap-1 active:bg-black/5 transition-colors"
+              onClick={() => navigate('/savings')}
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
+                style={{ background: '#FFF8E1' }}>
+                <PiggyBank size={16} color="#F5C518" />
+              </div>
+              <p className="text-[10px] text-muted font-medium text-center leading-tight">Накопления</p>
+              <p className="text-sm font-bold text-gray-900">{formatCurrency(totalSavings)}</p>
+            </button>
+
+            {/* Пенсия */}
+            <button
+              className="flex flex-col items-center py-4 px-2 gap-1 active:bg-black/5 transition-colors"
+              onClick={() => navigate('/savings')}
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center mb-1"
+                style={{ background: '#F0EEFF' }}>
+                <Landmark size={16} color="#7B5CF0" />
+              </div>
+              <p className="text-[10px] text-muted font-medium text-center leading-tight">Пенсия /</p>
+              <p className="text-[10px] text-muted font-medium text-center leading-tight -mt-1">Кер. Хишт.</p>
+              <p className="text-sm font-bold text-gray-900">{formatCurrency(totalPension)}</p>
+            </button>
+          </div>
+
+          {/* Total wealth bar */}
+          {(totalSavings + totalPension) > 0 && (
+            <div className="px-4 pb-4">
+              <div className="flex justify-between text-[10px] text-muted mb-1.5">
+                <span>Всего накоплено</span>
+                <span className="font-semibold text-gray-900">{formatCurrency(totalSavings + totalPension)}</span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden flex">
+                {totalSavings > 0 && (
+                  <div
+                    className="h-full rounded-l-full"
+                    style={{
+                      width: `${(totalSavings / (totalSavings + totalPension)) * 100}%`,
+                      background: '#F5C518',
+                    }}
+                  />
+                )}
+                {totalPension > 0 && (
+                  <div
+                    className="h-full rounded-r-full"
+                    style={{
+                      width: `${(totalPension / (totalSavings + totalPension)) * 100}%`,
+                      background: '#7B5CF0',
+                    }}
+                  />
+                )}
+              </div>
+              <div className="flex gap-3 mt-1.5">
+                <span className="text-[10px] text-muted flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-yellow-400" />Накопления
+                </span>
+                <span className="text-[10px] text-muted flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: '#7B5CF0' }} />Пенсия
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="flex gap-3 overflow-x-auto px-4 py-3 scrollbar-hide">
-        <div className="card min-w-[140px] p-4 border-t-4 border-income flex-shrink-0" style={{ borderTopColor: '#30D158' }}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <TrendingUp size={14} color="#30D158" />
-            <p className="text-xs text-muted font-medium">Доходы</p>
-          </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(totalIncome)}</p>
-        </div>
-        <div className="card min-w-[140px] p-4 flex-shrink-0" style={{ borderTop: '4px solid #FF453A' }}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <TrendingDown size={14} color="#FF453A" />
-            <p className="text-xs text-muted font-medium">Расходы</p>
-          </div>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(totalExpenses)}</p>
-        </div>
-        <div className="card min-w-[140px] p-4 flex-shrink-0" style={{ borderTop: '4px solid #2D6CDF' }}>
-          <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-xs">💰</span>
-            <p className="text-xs text-muted font-medium">Баланс</p>
-          </div>
-          <p
-            className="text-lg font-bold"
-            style={{ color: balance >= 0 ? '#30D158' : '#FF453A' }}
-          >
-            {balance >= 0 ? '+' : ''}{formatCurrency(balance)}
-          </p>
-        </div>
-      </div>
-
-      {/* Chart */}
+      {/* ── Месячный прогресс ── */}
       <div className="card mx-4 p-4 mb-4">
-        <p className="text-sm font-semibold text-gray-900 mb-3">Обзор за месяц</p>
-        {chartData.length > 1 ? (
-          <ResponsiveContainer width="100%" height={140}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <defs>
-                <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2D6CDF" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#2D6CDF" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
-              <XAxis dataKey="day" hide />
-              <YAxis hide />
-              <Tooltip
-                formatter={(v: number) => [formatCurrency(v), 'Баланс']}
-                contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}
-              />
-              <Area
-                type="monotone"
-                dataKey="balance"
-                stroke="#2D6CDF"
-                strokeWidth={2.5}
-                fill="url(#blueGrad)"
-                dot={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-[140px] flex items-center justify-center text-muted text-sm">
-            Недостаточно данных
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-gray-900">{monthsNom[now.getMonth()]}</p>
+          <span className="text-xs text-muted">{daysLeft} {daysLeft === 1 ? 'день' : daysLeft < 5 ? 'дня' : 'дней'} до конца</span>
+        </div>
+
+        {/* Income vs Expenses */}
+        <div className="space-y-2 mb-3">
+          <div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-muted flex items-center gap-1">
+                <TrendingUp size={11} color="#30D158" /> Доходы
+              </span>
+              <span className="font-semibold text-gray-900">{formatCurrency(totalIncome)}</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full">
+              <div className="h-2 rounded-full" style={{ width: '100%', background: '#30D158' }} />
+            </div>
           </div>
-        )}
+          <div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-muted flex items-center gap-1">
+                <TrendingDown size={11} color="#FF453A" /> Расходы
+              </span>
+              <span className="font-semibold" style={{ color: spendingPct > 80 ? '#FF453A' : '#gray-900' }}>
+                {formatCurrency(totalExpenses)}
+              </span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-2 rounded-full transition-all duration-500"
+                style={{
+                  width: `${spendingPct}%`,
+                  background: spendingPct > 90 ? '#FF453A' : spendingPct > 70 ? '#FF9500' : '#2D6CDF',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Forecast row */}
+        <div className="flex gap-2">
+          <div className="flex-1 bg-background rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-muted">Осталось</p>
+            <p className="text-sm font-bold" style={{ color: balance >= 0 ? '#30D158' : '#FF453A' }}>
+              {formatCurrency(Math.max(balance, 0))}
+            </p>
+          </div>
+          <div className="flex-1 bg-background rounded-xl p-2.5 text-center">
+            <p className="text-[10px] text-muted">Прогноз расходов</p>
+            <p className="text-sm font-bold text-gray-900">{totalIncome > 0 ? formatCurrency(projectedExpenses) : '—'}</p>
+          </div>
+          {topCategory && (
+            <div className="flex-1 bg-background rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-muted">Топ расход</p>
+              <p className="text-[11px] font-bold text-gray-900 truncate">{topCategory.cat?.nameRu}</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Recent transactions */}
+      {/* ── Цели накоплений ── */}
+      {topGoals.length > 0 && (
+        <div className="mx-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-base font-semibold text-gray-900">Цели накоплений</p>
+            <button
+              className="flex items-center gap-1 text-primary text-sm font-medium active:opacity-70"
+              onClick={() => navigate('/savings')}
+            >
+              Все <ArrowRight size={14} />
+            </button>
+          </div>
+          <div className="space-y-2">
+            {topGoals.map(goal => {
+              const pct = goal.targetAmount > 0
+                ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)
+                : 0
+              const iconKey = goal.iconName as keyof typeof LucideIcons
+              const GoalIcon = (LucideIcons[iconKey] as React.FC<{ size?: number; color?: string }>) || LucideIcons.PiggyBank
+              return (
+                <div key={goal.id} className="card p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: goal.colorHex }}>
+                      <GoalIcon size={18} color="#fff" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{goal.title}</p>
+                      <p className="text-xs text-muted">{formatCurrency(goal.currentAmount)} из {formatCurrency(goal.targetAmount)}</p>
+                    </div>
+                    <p className="text-sm font-bold text-primary flex-shrink-0">{Math.round(pct)}%</p>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, backgroundColor: goal.colorHex }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Пенсионные фонды ── */}
+      {(pensionFunds?.length ?? 0) > 0 && (
+        <div className="mx-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-base font-semibold text-gray-900">Пенсионные фонды</p>
+            <button
+              className="flex items-center gap-1 text-primary text-sm font-medium active:opacity-70"
+              onClick={() => navigate('/savings')}
+            >
+              Все <ArrowRight size={14} />
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+            {pensionFunds!.map(fund => (
+              <div key={fund.id} className="card min-w-[160px] p-4 flex-shrink-0">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center mb-2"
+                  style={{ background: '#F0EEFF' }}>
+                  <Landmark size={16} color="#7B5CF0" />
+                </div>
+                <p className="text-xs font-semibold text-gray-900 truncate">{fund.name}</p>
+                <p className="text-[10px] text-muted mb-1.5">{fundTypeLabel[fund.fundType]}</p>
+                <p className="text-base font-bold text-gray-900">{formatCurrency(fund.currentBalance)}</p>
+                <p className="text-[10px] text-muted">+{formatCurrency(fund.monthlyContribution)}/мес</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Последние операции ── */}
       <div className="mx-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-base font-semibold text-gray-900">Последние операции</p>
@@ -262,45 +411,13 @@ export default function Dashboard() {
         </div>
         <div className="card overflow-hidden">
           {recent.length === 0 ? (
-            <p className="text-center text-muted text-sm py-8">Нет операций</p>
-          ) : (
-            recent.map((tx) => <TransactionRow key={tx.id} tx={tx} />)
-          )}
-        </div>
-      </div>
-
-      {/* Quick stats */}
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
-        {topCategory && (
-          <div className="card min-w-[160px] p-4 flex-shrink-0">
-            <p className="text-xs text-muted mb-1">Топ расход</p>
-            <div className="flex items-center gap-2">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: topCategory.cat?.color || '#999' }}
-              >
-                <CategoryIcon categoryKey={topCategory.key} size={16} />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-gray-900 truncate max-w-[90px]">
-                  {topCategory.cat?.nameRu}
-                </p>
-                <p className="text-sm font-bold text-expense">{formatCurrency(topCategory.amount)}</p>
-              </div>
+            <div className="py-10 flex flex-col items-center gap-2">
+              <p className="text-muted text-sm">Нет операций в этом месяце</p>
+              <p className="text-xs text-muted">Нажми + чтобы добавить первую</p>
             </div>
-          </div>
-        )}
-        <div className="card min-w-[160px] p-4 flex-shrink-0">
-          <p className="text-xs text-muted mb-1">Транзакций</p>
-          <p className="text-2xl font-bold text-gray-900">{transactions?.length ?? 0}</p>
-          <p className="text-xs text-muted mt-0.5">в этом месяце</p>
-        </div>
-        <div className="card min-w-[160px] p-4 flex-shrink-0">
-          <p className="text-xs text-muted mb-1">Всего сохранено</p>
-          <p className="text-sm font-bold text-income">
-            {totalExpenses > 0 ? Math.round((balance / totalIncome) * 100) : 0}%
-          </p>
-          <p className="text-xs text-muted mt-0.5">от доходов</p>
+          ) : (
+            recent.map(tx => <TransactionRow key={tx.id} tx={tx} />)
+          )}
         </div>
       </div>
     </div>
