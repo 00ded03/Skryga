@@ -32,11 +32,20 @@ export default function TabBar() {
   return (
     <div
       className="fixed bottom-0 left-0 right-0 z-50"
-      style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+      style={{
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        transform: 'translateZ(0)',
+        WebkitTransform: 'translateZ(0)',
+        willChange: 'transform',
+      }}
     >
       <div
-        className="border-t border-black/5 bg-white/80"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 8px)' }}
+        className="border-t border-black/5"
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          paddingBottom: 'env(safe-area-inset-bottom, 8px)',
+        }}
       >
         <div className="flex items-center justify-around px-2 pt-1">
           {tabs.map((tab, index) => {

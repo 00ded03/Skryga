@@ -85,6 +85,8 @@ export default function Dashboard() {
   const monthStart = getMonthStart(now)
   const monthEnd = getMonthEnd(now)
 
+  const settings = useLiveQuery(() => db.settings.toCollection().first(), [])
+
   const transactions = useLiveQuery(
     () =>
       db.transactions
@@ -149,7 +151,9 @@ export default function Dashboard() {
       >
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-white text-xl font-bold">Добрый день, Илья!</h1>
+            <h1 className="text-white text-xl font-bold">
+              {`${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${settings?.member1Name ?? 'Филипп'}!`}
+            </h1>
             <p className="text-white/70 text-sm capitalize">{todayLabel}</p>
           </div>
           <div className="flex gap-2">

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { X, Camera, Check } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { X, Camera, Check, Loader2, Plus } from 'lucide-react'
 import { db } from '../../db/database'
 import { expenseCategories, incomeCategories } from '../../data/categories'
 import { useStore } from '../../store/useStore'
@@ -10,12 +10,12 @@ const QUICK_AMOUNTS = [50, 100, 200, 500]
 
 const OWNER_OPTIONS: { value: BudgetOwner; label: string; color: string }[] = [
   { value: 'family', label: 'Семейные', color: '#2D6CDF' },
-  { value: 'ilya', label: 'Илья', color: '#2D6CDF' },
+  { value: 'ilya', label: 'Филипп', color: '#2D6CDF' },
   { value: 'anastasia', label: 'Анастасия', color: '#7B5CF0' },
 ]
 
 export default function AddTransactionModal() {
-  const { closeAddTransaction, defaultTransactionType, openScanner } = useStore()
+  const { closeAddTransaction, defaultTransactionType } = useStore()
 
   const [txType, setTxType] = useState<'expense' | 'income'>(defaultTransactionType)
   const [amountStr, setAmountStr] = useState('')
@@ -26,8 +26,24 @@ export default function AddTransactionModal() {
   const [owner, setOwner] = useState<BudgetOwner>('family')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [scanMsg, setScanMsg] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const categories = txType === 'expense' ? expenseCategories : incomeCategories
+
+  // Lock body scroll while modal is open (fix #3)
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = prev
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
+  }, [])
 
   useEffect(() => {
     setSelectedCategory(null)
@@ -36,19 +52,14 @@ export default function AddTransactionModal() {
   }, [txType])
 
   useEffect(() => {
-    if (selectedCategory && !title) {
-      setTitle(selectedCategory.nameRu)
-    }
+    if (selectedCategory && !title) setTitle(selectedCategory.nameRu)
   }, [selectedCategory])
 
   function handleAmountKey(key: string) {
-    if (key === 'backspace') {
-      setAmountStr((s) => s.slice(0, -1))
-      return
-    }
+    if (key === 'backspace') { setAmountStr(s => s.slice(0, -1)); return }
     if (key === '.' && amountStr.includes('.')) return
     if (amountStr.length >= 8) return
-    setAmountStr((s) => s + key)
+    setAmountStr(s => s + key)
   }
 
   function addQuickAmount(v: number) {
@@ -56,10 +67,46 @@ export default function AddTransactionModal() {
     setAmountStr(String(current + v))
   }
 
+  // Scanner: real camera/file input → GPT-4o-mini (fix #4)
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setScanning(true)
+    setScanMsg('Читаю чек…')
+    try {
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1])
+        reader.readAsDataURL(file)
+      })
+      setScanMsg('Распознаю…')
+      const res = await fetch('/api/scan-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      })
+      const result = await res.json()
+      if (result.amount) setAmountStr(String(result.amount))
+      if (result.title || result.merchantName) setTitle(result.title || result.merchantName)
+      if (result.suggestedCategoryKey) {
+        const all = [...expenseCategories, ...incomeCategories]
+        const cat = all.find(c => c.key === result.suggestedCategoryKey)
+        if (cat) { setSelectedCategory(cat); setTxType(cat.type) }
+      }
+      setScanMsg('Готово!')
+      setTimeout(() => setScanMsg(''), 1500)
+    } catch {
+      setScanMsg('Не удалось распознать')
+      setTimeout(() => setScanMsg(''), 2000)
+    } finally {
+      setScanning(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   async function handleSave() {
     const amount = parseFloat(amountStr)
-    if (!amount || amount <= 0) return
-    if (!selectedCategory) return
+    if (!amount || amount <= 0 || !selectedCategory) return
     setSaving(true)
     try {
       await db.transactions.add({
@@ -84,131 +131,122 @@ export default function AddTransactionModal() {
   const canSave = amount > 0 && !!selectedCategory
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/50 flex items-end">
-      <div
-        className="w-full bg-background rounded-t-ios-xl overflow-y-auto"
-        style={{
-          maxHeight: '95vh',
-          paddingBottom: 'env(safe-area-inset-bottom, 16px)',
-          animation: 'slideUp 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        }}
-      >
-        <style>{`
-          @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-        `}</style>
+    <div
+      className="fixed inset-0 z-40 bg-black/50 flex items-end"
+      onClick={e => e.target === e.currentTarget && closeAddTransaction()}
+    >
+      {/* Hidden file input for camera/gallery */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileSelected}
+      />
 
-        {/* Handle + close */}
-        <div className="flex items-center justify-center pt-3 pb-1 relative">
+      {/* Modal sheet — flex column so footer is always visible (fix #2) */}
+      <div
+        className="w-full bg-background rounded-t-ios-xl flex flex-col"
+        style={{
+          maxHeight: '95dvh',
+          animation: 'slideUp 0.28s cubic-bezier(0.34,1.56,0.64,1)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <style>{`@keyframes slideUp{from{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
+
+        {/* ── Fixed header ── */}
+        <div className="flex-shrink-0 flex items-center justify-center pt-3 pb-1 relative">
           <div className="w-10 h-1 bg-black/10 rounded-full" />
           <button
             onClick={closeAddTransaction}
-            className="absolute right-4 w-8 h-8 rounded-full bg-white flex items-center justify-center active:opacity-70 shadow-card"
+            className="absolute right-4 w-8 h-8 rounded-full bg-white shadow-card flex items-center justify-center active:opacity-70"
           >
             <X size={18} color="#8E8E93" />
           </button>
         </div>
 
-        <div className="px-4 pb-4 space-y-4">
-          {/* Type tabs */}
-          <div className="flex bg-white rounded-ios p-1 gap-1 shadow-card mt-2">
+        {/* Type switcher in header */}
+        <div className="flex-shrink-0 px-4 pb-2">
+          <div className="flex bg-white rounded-ios p-1 gap-1 shadow-card">
             <button
               onClick={() => setTxType('expense')}
-              className={`flex-1 py-2.5 rounded-[10px] text-sm font-semibold transition-colors ${
-                txType === 'expense' ? 'bg-expense text-white' : 'text-muted'
-              }`}
+              className={`flex-1 py-2.5 rounded-[10px] text-sm font-semibold transition-colors ${txType === 'expense' ? 'bg-expense text-white' : 'text-muted'}`}
             >
               Расход
             </button>
             <button
               onClick={() => setTxType('income')}
-              className={`flex-1 py-2.5 rounded-[10px] text-sm font-semibold transition-colors ${
-                txType === 'income' ? 'bg-income text-white' : 'text-muted'
-              }`}
+              className={`flex-1 py-2.5 rounded-[10px] text-sm font-semibold transition-colors ${txType === 'income' ? 'bg-income text-white' : 'text-muted'}`}
             >
               Доход
             </button>
           </div>
+        </div>
 
-          {/* Amount display */}
+        {/* ── Scrollable content ── */}
+        <div className="flex-1 overflow-y-auto px-4 space-y-3 pb-2" style={{ overscrollBehavior: 'contain' }}>
+
+          {/* Amount */}
           <div className="card p-4 text-center">
             <div className="flex items-center justify-center gap-2">
-              <span
-                className="text-4xl font-bold"
-                style={{ color: txType === 'income' ? '#30D158' : '#FF453A' }}
-              >
-                ₪
-              </span>
-              <span
-                className={`text-5xl font-bold ${!amountStr ? 'text-gray-300' : ''}`}
-                style={{ color: amountStr ? (txType === 'income' ? '#30D158' : '#FF453A') : undefined }}
-              >
+              <span className="text-4xl font-bold" style={{ color: txType === 'income' ? '#30D158' : '#FF453A' }}>₪</span>
+              <span className={`text-5xl font-bold`} style={{ color: amountStr ? (txType === 'income' ? '#30D158' : '#FF453A') : '#D1D5DB' }}>
                 {amountStr || '0'}
               </span>
             </div>
-
-            {/* Numpad */}
             <div className="grid grid-cols-3 gap-2 mt-4">
-              {['1','2','3','4','5','6','7','8','9','.','0','backspace'].map((k) => (
-                <button
-                  key={k}
-                  onClick={() => handleAmountKey(k)}
-                  className="py-3 rounded-ios bg-background text-lg font-medium text-gray-900 active:bg-gray-200 transition-colors flex items-center justify-center"
-                >
+              {['1','2','3','4','5','6','7','8','9','.','0','backspace'].map(k => (
+                <button key={k} onClick={() => handleAmountKey(k)}
+                  className="py-3 rounded-ios bg-background text-lg font-medium text-gray-900 active:bg-gray-200 transition-colors flex items-center justify-center">
                   {k === 'backspace' ? '⌫' : k}
                 </button>
               ))}
             </div>
-
-            {/* Quick amounts */}
             <div className="flex gap-2 mt-3">
-              {QUICK_AMOUNTS.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => addQuickAmount(v)}
-                  className="flex-1 py-2 rounded-ios bg-primary/10 text-primary text-sm font-medium active:opacity-70"
-                >
+              {QUICK_AMOUNTS.map(v => (
+                <button key={v} onClick={() => addQuickAmount(v)}
+                  className="flex-1 py-2 rounded-ios bg-primary/10 text-primary text-sm font-medium active:opacity-70">
                   +{v}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Category grid */}
+          {/* Category grid (fix #5 — "новая категория" в конце) */}
           <div className="card p-4">
             <p className="text-xs text-muted font-medium uppercase tracking-wide mb-3">Категория</p>
             <div className="grid grid-cols-4 gap-3">
-              {categories.map((cat) => {
+              {categories.map(cat => {
                 const isSelected = selectedCategory?.key === cat.key
                 const iconKey = cat.icon as keyof typeof LucideIcons
                 const Icon = (LucideIcons[iconKey] as React.FC<{ size?: number; color?: string }>) || LucideIcons.MoreHorizontal
                 return (
-                  <button
-                    key={cat.key}
-                    onClick={() => {
-                      setSelectedCategory(cat)
-                      setSelectedSubcategoryKey(null)
-                    }}
-                    className="flex flex-col items-center gap-1.5 active:opacity-70"
-                  >
-                    <div
-                      className="w-12 h-12 rounded-ios flex items-center justify-center transition-transform"
+                  <button key={cat.key} onClick={() => { setSelectedCategory(cat); setSelectedSubcategoryKey(null) }}
+                    className="flex flex-col items-center gap-1.5 active:opacity-70">
+                    <div className="w-12 h-12 rounded-ios flex items-center justify-center transition-all"
                       style={{
                         backgroundColor: cat.color,
                         boxShadow: isSelected ? `0 0 0 3px ${cat.color}60, 0 0 0 5px ${cat.color}30` : 'none',
-                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                      }}
-                    >
+                        transform: isSelected ? 'scale(1.08)' : 'scale(1)',
+                      }}>
                       <Icon size={22} color="#fff" />
                     </div>
-                    <span className="text-[10px] text-center leading-tight text-gray-700 truncate w-full px-0.5">
-                      {cat.nameRu}
-                    </span>
+                    <span className="text-[10px] text-center leading-tight text-gray-700 truncate w-full">{cat.nameRu}</span>
                   </button>
                 )
               })}
+              {/* Добавить свою категорию */}
+              <button
+                onClick={() => alert('Кастомные категории — в следующем обновлении!')}
+                className="flex flex-col items-center gap-1.5 active:opacity-70"
+              >
+                <div className="w-12 h-12 rounded-ios flex items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50">
+                  <Plus size={20} color="#8E8E93" />
+                </div>
+                <span className="text-[10px] text-center leading-tight text-muted">Новая</span>
+              </button>
             </div>
           </div>
 
@@ -216,17 +254,10 @@ export default function AddTransactionModal() {
           {selectedCategory && selectedCategory.subcategories.length > 0 && (
             <div className="card p-4">
               <p className="text-xs text-muted font-medium uppercase tracking-wide mb-3">Подкатегория</p>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {selectedCategory.subcategories.map((sub) => (
-                  <button
-                    key={sub.key}
-                    onClick={() => setSelectedSubcategoryKey(sub.key)}
-                    className={`flex-shrink-0 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
-                      selectedSubcategoryKey === sub.key
-                        ? 'bg-primary text-white'
-                        : 'bg-background text-gray-700'
-                    }`}
-                  >
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {selectedCategory.subcategories.map(sub => (
+                  <button key={sub.key} onClick={() => setSelectedSubcategoryKey(sub.key)}
+                    className={`flex-shrink-0 px-3 py-2 rounded-full text-sm font-medium transition-colors ${selectedSubcategoryKey === sub.key ? 'bg-primary text-white' : 'bg-background text-gray-700'}`}>
                     {sub.nameRu}
                   </button>
                 ))}
@@ -238,35 +269,20 @@ export default function AddTransactionModal() {
           <div className="card p-4 space-y-3">
             <div>
               <p className="text-xs text-muted font-medium mb-1">Название</p>
-              <input
-                type="text"
-                placeholder={selectedCategory?.nameRu || 'Название операции'}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="input-field"
-              />
+              <input type="text" placeholder={selectedCategory?.nameRu || 'Название операции'} value={title}
+                onChange={e => setTitle(e.target.value)} className="input-field" />
             </div>
             <div>
               <p className="text-xs text-muted font-medium mb-1">Дата</p>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="input-field"
-              />
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input-field" />
             </div>
             <div>
               <p className="text-xs text-muted font-medium mb-2">Кто платит</p>
               <div className="flex gap-2">
-                {OWNER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => setOwner(opt.value)}
-                    className={`flex-1 py-2.5 rounded-ios text-sm font-medium transition-colors ${
-                      owner === opt.value ? 'text-white' : 'bg-background text-muted'
-                    }`}
-                    style={owner === opt.value ? { backgroundColor: opt.color } : {}}
-                  >
+                {OWNER_OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => setOwner(opt.value)}
+                    className={`flex-1 py-2.5 rounded-ios text-sm font-medium transition-colors ${owner === opt.value ? 'text-white' : 'bg-background text-muted'}`}
+                    style={owner === opt.value ? { backgroundColor: opt.color } : {}}>
                     {opt.label}
                   </button>
                 ))}
@@ -274,44 +290,30 @@ export default function AddTransactionModal() {
             </div>
             <div>
               <p className="text-xs text-muted font-medium mb-1">Заметка (необязательно)</p>
-              <textarea
-                placeholder="Комментарий..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                className="input-field resize-none"
-              />
+              <textarea placeholder="Комментарий..." value={notes} onChange={e => setNotes(e.target.value)}
+                rows={2} className="input-field resize-none" />
             </div>
           </div>
+        </div>
 
-          {/* Scan receipt */}
+        {/* ── Fixed footer — always visible (fix #2) ── */}
+        <div className="flex-shrink-0 px-4 pt-2 pb-2 space-y-2 bg-background border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 16px)' }}>
+
           <button
-            onClick={() => {
-              closeAddTransaction()
-              openScanner()
-            }}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={scanning}
             className="w-full py-3 rounded-ios border-2 border-primary/30 flex items-center justify-center gap-2 text-primary font-medium text-sm active:opacity-70"
           >
-            <Camera size={18} />
-            Сканировать чек
+            {scanning ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+            {scanMsg || 'Сканировать чек'}
           </button>
 
-          {/* Save */}
-          <button
-            onClick={handleSave}
-            disabled={!canSave || saving}
-            className={`btn-primary w-full flex items-center justify-center gap-2 ${
-              !canSave ? 'opacity-40' : ''
-            }`}
-          >
-            {saving ? (
-              <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <Check size={18} />
-                Сохранить
-              </>
-            )}
+          <button onClick={handleSave} disabled={!canSave || saving}
+            className={`btn-primary w-full flex items-center justify-center gap-2 ${!canSave ? 'opacity-40' : ''}`}>
+            {saving
+              ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <><Check size={18} />Сохранить</>}
           </button>
         </div>
       </div>

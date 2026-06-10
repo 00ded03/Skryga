@@ -17,6 +17,18 @@ class SkrygaDB extends Dexie {
       budgetLimits: '++id, categoryKey',
       settings: '++id',
     })
+    // v2: rename Илья → Филипп in existing settings
+    this.version(2).stores({
+      transactions: '++id, date, type, categoryKey, owner, createdAt',
+      savingsGoals: '++id, createdAt',
+      pensionFunds: '++id, owner',
+      budgetLimits: '++id, categoryKey',
+      settings: '++id',
+    }).upgrade(tx =>
+      tx.table('settings').toCollection().modify((s: FamilySettings) => {
+        if (s.member1Name === 'Илья') s.member1Name = 'Филипп'
+      })
+    )
   }
 }
 
@@ -27,7 +39,7 @@ export async function seedDefaults() {
   if (existing > 0) return
 
   await db.settings.add({
-    member1Name: 'Илья',
+    member1Name: 'Филипп',
     member1Emoji: '👨',
     member1Color: '#2D6CDF',
     member2Name: 'Анастасия',
@@ -40,7 +52,7 @@ export async function seedDefaults() {
   const now = new Date()
   const sampleTransactions: Omit<Transaction, 'id'>[] = [
     { date: new Date(now.getFullYear(), now.getMonth(), now.getDate()), amount: 284, type: 'expense', categoryKey: 'food', subcategoryKey: 'groceries', title: 'Супермаркет Шуферсал', owner: 'family', isFromScan: false, createdAt: new Date() },
-    { date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1), amount: 9250, type: 'income', categoryKey: 'salary', subcategoryKey: 'salary_main', title: 'Зарплата — Илья', owner: 'ilya', isFromScan: false, createdAt: new Date() },
+    { date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1), amount: 9250, type: 'income', categoryKey: 'salary', subcategoryKey: 'salary_main', title: 'Зарплата — Филипп', owner: 'ilya', isFromScan: false, createdAt: new Date() },
     { date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2), amount: 380, type: 'expense', categoryKey: 'bills', subcategoryKey: 'electricity', title: 'Хеврат Хашмаль', owner: 'family', isFromScan: false, createdAt: new Date() },
     { date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2), amount: 127, type: 'expense', categoryKey: 'food', subcategoryKey: 'delivery', title: 'Wolt — доставка', owner: 'family', isFromScan: false, createdAt: new Date() },
     { date: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 3), amount: 210, type: 'expense', categoryKey: 'transport', subcategoryKey: 'fuel', title: 'Бензин', owner: 'ilya', isFromScan: false, createdAt: new Date() },
