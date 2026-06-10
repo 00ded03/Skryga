@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 interface ScanRequestBody {
   imageBase64: string
   mimeType: string
+  documentType?: 'receipt' | 'salary_slip'
 }
 
 interface OpenAIResponse {
@@ -28,6 +29,7 @@ interface ExtractedReceiptData {
 const VALID_CATEGORIES = [
   'food', 'bills', 'transport', 'health', 'children', 'fashion',
   'entertainment', 'education', 'home', 'gifts', 'finance', 'pets', 'other_expense',
+  'salary', 'other_income',
 ]
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,14 +42,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'OpenAI API key not configured' })
   }
 
-  const body = req.body as ScanRequestBody
-  const { imageBase64, mimeType } = body
+  const { imageBase64, mimeType, documentType } = req.body as ScanRequestBody
 
   if (!imageBase64 || !mimeType) {
     return res.status(400).json({ error: 'imageBase64 and mimeType are required' })
   }
 
-  const prompt = `Это фото чека или скриншот платежа Apple Pay.
+  const isSalarySlip = documentType === 'salary_slip'
+  const isPdf = mimeType === 'application/pdf'
+
+  const prompt = isSalarySlip
+    ? `Это тлуш сахар (תלוש שכר) — расчётный листок зарплаты.
+Извлеки следующую информацию:
+- сумма к выплате (שכר נטו, net pay — только число в шекелях)
+- название работодателя
+- месяц и год (дата выплаты)
+
+Верни ТОЛЬКО JSON без объяснений:
+{
+  "amount": <число>,
+  "merchantName": "<название работодателя>",
+  "date": "<ISO дата, например 2024-06-01>",
+  "suggestedCategory": "salary",
+  "title": "Зарплата"
+}
+
+Если поле не определить: amount=0, merchantName="Работодатель", date="${new Date().toISOString().slice(0, 10)}", suggestedCategory="salary", title="Зарплата".`
+    : `Это фото чека или скриншот платежа Apple Pay.
 Извлеки следующую информацию:
 - сумма (в шекелях, только число)
 - название магазина/получателя
@@ -65,6 +86,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 Если какое-то поле не удаётся определить, используй: amount=0, merchantName="Неизвестно", date="${new Date().toISOString().slice(0, 10)}", suggestedCategory="other_expense", title="Операция из чека".`
 
+  const contentItem = isPdf
+    ? { type: 'file', file: { filename: 'document.pdf', file_data: `data:application/pdf;base64,${imageBase64}` } }
+    : { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'low' } }
+
   try {
     const openAIRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -73,19 +98,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: isPdf ? 'gpt-4o' : 'gpt-4o-mini',
         max_tokens: 300,
         messages: [
           {
             role: 'user',
             content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${imageBase64}`,
-                  detail: 'low',
-                },
-              },
+              contentItem,
               {
                 type: 'text',
                 text: prompt,

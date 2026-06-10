@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Camera, Check, Loader2, Plus } from 'lucide-react'
+import { X, Camera, Check, Loader2, Plus, FileText } from 'lucide-react'
 import { db } from '../../db/database'
 import { expenseCategories, incomeCategories } from '../../data/categories'
 import { useStore } from '../../store/useStore'
@@ -29,6 +29,7 @@ export default function AddTransactionModal() {
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
   const categories = txType === 'expense' ? expenseCategories : incomeCategories
 
@@ -67,12 +68,9 @@ export default function AddTransactionModal() {
     setAmountStr(String(current + v))
   }
 
-  // Scanner: real camera/file input → GPT-4o-mini (fix #4)
-  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function scanFile(file: File, documentType?: 'receipt' | 'salary_slip') {
     setScanning(true)
-    setScanMsg('Читаю чек…')
+    setScanMsg(documentType === 'salary_slip' ? 'Читаю тлуш…' : 'Читаю чек…')
     try {
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader()
@@ -83,11 +81,12 @@ export default function AddTransactionModal() {
       const res = await fetch('/api/scan-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type, documentType }),
       })
       const result = await res.json()
       if (result.amount) setAmountStr(String(result.amount))
       if (result.title || result.merchantName) setTitle(result.title || result.merchantName)
+      if (result.date) setDate(result.date)
       if (result.suggestedCategoryKey) {
         const all = [...expenseCategories, ...incomeCategories]
         const cat = all.find(c => c.key === result.suggestedCategoryKey)
@@ -100,8 +99,21 @@ export default function AddTransactionModal() {
       setTimeout(() => setScanMsg(''), 2000)
     } finally {
       setScanning(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await scanFile(file, 'receipt')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handlePdfSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await scanFile(file, 'salary_slip')
+    if (pdfInputRef.current) pdfInputRef.current.value = ''
   }
 
   async function handleSave() {
@@ -135,7 +147,7 @@ export default function AddTransactionModal() {
       className="fixed inset-0 z-[60] bg-black/50 flex items-end"
       onClick={e => e.target === e.currentTarget && closeAddTransaction()}
     >
-      {/* Hidden file input for camera/gallery */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -143,6 +155,13 @@ export default function AddTransactionModal() {
         capture="environment"
         className="hidden"
         onChange={handleFileSelected}
+      />
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        className="hidden"
+        onChange={handlePdfSelected}
       />
 
       {/* Modal sheet — flex column so footer is always visible (fix #2) */}
@@ -300,14 +319,24 @@ export default function AddTransactionModal() {
         <div className="flex-shrink-0 px-4 pt-2 pb-2 space-y-2 bg-background border-t border-black/5"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 16px)' }}>
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={scanning}
-            className="w-full py-3 rounded-ios border-2 border-primary/30 flex items-center justify-center gap-2 text-primary font-medium text-sm active:opacity-70"
-          >
-            {scanning ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
-            {scanMsg || 'Сканировать чек'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanning}
+              className="flex-1 py-3 rounded-ios border-2 border-primary/30 flex items-center justify-center gap-2 text-primary font-medium text-sm active:opacity-70"
+            >
+              {scanning ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+              {scanMsg || 'Сканировать чек'}
+            </button>
+            <button
+              onClick={() => pdfInputRef.current?.click()}
+              disabled={scanning}
+              className="flex-1 py-3 rounded-ios border-2 border-secondary/30 flex items-center justify-center gap-2 text-secondary font-medium text-sm active:opacity-70"
+            >
+              {scanning ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+              Загрузить PDF
+            </button>
+          </div>
 
           <button onClick={handleSave} disabled={!canSave || saving}
             className={`btn-primary w-full flex items-center justify-center gap-2 ${!canSave ? 'opacity-40' : ''}`}>
