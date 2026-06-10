@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, X, TrendingUp, Landmark, Building2, Edit2, Trash2 } from 'lucide-react'
+import { Plus, X, TrendingUp, Landmark, Building2, Edit2, Trash2, ShieldCheck } from 'lucide-react'
 import { db } from '../db/database'
 import { formatCurrency } from '../lib/currency'
 import { useScrollLock } from '../hooks/useScrollLock'
@@ -37,6 +37,7 @@ function FundTypeBadge({ type }: { type: PensionFund['fundType'] }) {
   const map = {
     pension: { label: 'Пенсия', color: '#2D6CDF' },
     keren_hishtalmut: { label: 'Керен Хиштальмут', color: '#7B5CF0' },
+    pitzuim: { label: 'Пицуим', color: '#FF9500' },
     investment: { label: 'Инвестиции', color: '#30D158' },
   }
   const { label, color } = map[type]
@@ -263,12 +264,12 @@ function FundModal({
         <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-3 pt-4" style={{ overscrollBehavior: 'contain' }}>
           <input type="text" placeholder="Название фонда" value={name}
             onChange={e => setName(e.target.value)} className="input-field" />
-          <div className="flex bg-background rounded-ios p-1 gap-1">
-            {(['pension', 'keren_hishtalmut', 'investment'] as PensionFund['fundType'][]).map(t => {
-              const labels = { pension: 'Пенсия', keren_hishtalmut: 'К.Хиштальмут', investment: 'Инвестиции' }
+          <div className="grid grid-cols-2 gap-1 bg-background rounded-ios p-1">
+            {(['pension', 'keren_hishtalmut', 'pitzuim', 'investment'] as PensionFund['fundType'][]).map(t => {
+              const labels = { pension: 'Пенсия', keren_hishtalmut: 'К.Хиштальмут', pitzuim: 'Пицуим', investment: 'Инвестиции' }
               return (
                 <button key={t} onClick={() => setFundType(t)}
-                  className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${fundType === t ? 'bg-primary text-white' : 'text-muted'}`}>
+                  className={`py-2 rounded-[10px] text-xs font-medium transition-colors ${fundType === t ? 'bg-primary text-white' : 'text-muted'}`}>
                   {labels[t]}
                 </button>
               )
@@ -439,6 +440,7 @@ export default function Savings() {
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   {fund.fundType === 'pension' && <Landmark size={20} color="#2D6CDF" />}
                   {fund.fundType === 'keren_hishtalmut' && <Building2 size={20} color="#7B5CF0" />}
+                  {fund.fundType === 'pitzuim' && <ShieldCheck size={20} color="#FF9500" />}
                   {fund.fundType === 'investment' && <TrendingUp size={20} color="#30D158" />}
                 </div>
                 <div className="flex-1 min-w-0">
