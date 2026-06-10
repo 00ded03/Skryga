@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Skryga — Семейные финансы</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
+    background: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  /* Device frame */
+  .device-frame {
+    width: 390px;
+    min-height: 844px;
+    max-height: 844px;
+    background: #000;
+    border-radius: 54px;
+    padding: 12px;
+    box-shadow:
+      0 0 0 2px #3a3a3a,
+      0 0 0 4px #1a1a1a,
+      0 30px 80px rgba(0,0,0,0.7),
+      0 10px 30px rgba(0,0,0,0.5);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .device-screen {
+    width: 100%;
+    height: 100%;
+    background: #F0F4FF;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Notch / Dynamic Island */
+  .dynamic-island {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 34px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+  }
+
+  /* Status bar */
+  .status-bar {
+    height: 54px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 0 28px 8px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+  }
+
+  .status-bar .time {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .status-bar .icons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .status-bar .icons svg {
+    width: 16px;
+    height: 12px;
+  }
+
+  /* Screens */
+  .screens {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .screen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    opacity: 0;
+    transform: translateX(30px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  .screen.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+
+  .screen::-webkit-scrollbar { display: none; }
+
+  /* Bottom tab bar */
+  .tab-bar {
+    height: 82px;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid rgba(0,0,0,0.12);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 10px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 50;
+  }
+
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .tab-item:active { transform: scale(0.88); }
+
+  .tab-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tab-icon svg {
+    width: 24px;
+    height: 24px;
+    transition: all 0.2s ease;
+  }
+
+  .tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: #8E8E93;
+    transition: color 0.2s ease;
+    letter-spacing: -0.1px;
+  }
+
+  .tab-item.active .tab-label { color: #2D6CDF; }
+  .tab-item.active .tab-icon svg { color: #2D6CDF; }
+
+  /* ============ SCREEN 1: DASHBOARD ============ */
+  .dashboard-header {
+    background: linear-gradient(135deg, #2D6CDF 0%, #5B4FD8 50%, #7B5CF0 100%);
+    padding: 16px 20px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dashboard-header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 180px; height: 180px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
+  }
+
+  .dashboard-header::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; left: -20px;
+    width: 140px; height: 140px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 50%;
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .greeting h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -0.5px;
+  }
+
+  .greeting p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.72);
+    margin-top: 2px;
+  }
+
+  .avatar-group {
+    display: flex;
+    gap: -6px;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    color: white;
+    border: 2.5px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+
+  .avatar-ilya { background: rgba(45,108,223,0.9); margin-right: -8px; z-index: 2; position: relative; }
+  .avatar-maria { background: rgba(123,92,240,0.9); }
+
+  /* Summary cards */
+  .summary-cards {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px;
+    margin-top: -20px;
+    position: relative;
+    z-index: 10;
+  }
+
+  .summary-card {
+    flex: 1;
+    background: white;
+    border-radius: 16px;
+    padding: 14px 10px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .summary-card .card-label {
+    font-size: 10px;
+    color: #8E8E93;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+  }
+
+  .summary-card .card-amount {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .card-amount.income { color: #30D158; }
+  .card-amount.expense { color: #FF453A; }
+  .card-amount.balance { color: #2D6CDF; }
+
+  /* Section headers */
+  .section {
+    padding: 20px 16px 0;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.4px;
+  }
+
+  .section-link {
+    font-size: 14px;
+    color: #2D6CDF;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* Chart container */
+  .chart-card {
+    background: white;
+    border-radius: 20px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 4px;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #8E8E93;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Transaction rows */
+  .transactions-card {
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  .transaction-row {
+    display: flex;
+    align-items: center;
+    padding: 13px 16px;
+    gap: 12px;
+    transition: background 0.15s;
+    position: relative;
+  }
+
+  .transaction-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 56px;
+    right: 0;
+    height: 0.5px;
+    background: #F2F2F7;
+  }
+
+  .transaction-row:active { background: #F9F9FB; }
+
+  .tx-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .tx-icon.food { background: #FFF0ED; }
+  .tx-icon.income-icon { background: #EDFFF2; }
+  .tx-icon.utility { background: #FFF9ED; }
+  .tx-icon.transport { background: #EDF3FF; }
+  .tx-icon.delivery { background: #FFF0F8; }
+
+  .tx-info { flex: 1; min-width: 0; }
+
+  .tx-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1C1C1E;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.2px;
+  }
+
+  .tx-subtitle {
+    font-size: 12px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+
+  .tx-right { text-align: right; flex-shrink: 0; }
+
+  .tx-amount {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .tx-amount.neg { color: #FF453A; }
+  .tx-amount.pos { color: #30D158; }
+
+  .tx-date {
+    font-size: 11px;
+    color: #C7C7CC;
+    margin-top: 2px;
+  }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 96px;
+    right: calc(50% - 195px + 16px);
+    width: 54px;
+    height: 54px;
+    background: linear-gradient(135deg, #2D6CDF, #5B4FD8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 20px rgba(45,108,223,0.45);
+    cursor: pointer;
+    z-index: 40;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .fab:active {
+    transform: scale(0.92);
+    box-shadow: 0 3px 12px rgba(45,108,223,0.4);
+  }
+
+  .fab svg { color: white; }
+
+  /* Bottom sheet */
+  .bottom-sheet-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 80;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    border-radius: 44px;
+    overflow: hidden;
+  }
+
+  .bottom-sheet-overlay.visible {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .bottom-sheet {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: white;
+    border-radius: 24px 24px 0 0;
+    padding: 8px 20px 40px;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .bottom-sheet-overlay.visible .bottom-sheet {
+    transform: translateY(0);
+  }
+
+  .sheet-handle {
+    width: 36px;
+    height: 5px;
+    background: #D1D1D6;
+    border-radius: 3px;
+    margin: 6px auto 20px;
+  }
+
+  .sheet-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1C1C1E;
+    text-align: center;
+    margin-bottom: 24px;
+    letter-spacing: -0.4px;
+  }
+
+  .sheet-buttons {
+    display: flex;
+    gap: 12px;
+  }
+
+  .sheet-btn {
+    flex: 1;
+    padding: 16px;
+    border-radius: 16px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s, opacity 0.15s;
+    font-family: inherit;
+    letter-spacing: -0.3px;
+  }
+
+  .sheet-btn:active { transform: scale(0.96); opacity: 0.85; }
+  .sheet-btn.expense-btn { background: #FFF0EF; color: #FF453A; }
+  .sheet-btn.income-btn { background: #EDFFF2; color: #30D158; }
+
+  .sheet-btn .btn-icon { font-size: 28px; }
+
+  /* ============ SCREEN 2: TRANSACTIONS ============ */
+  .search-bar-wrap {
+    padding: 12px 16px 8px;
+    background: #F0F4FF;
+  }
+
+  .search-bar {
+    background: white;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    gap: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .search-bar input {
+    border: none;
+    outline: none;
+    font-size: 15px;
+    color: #1C1C1E;
+    flex: 1;
+    font-family: inherit;
+    background: transparent;
+  }
+
+  .search-bar input::placeholder { color: #C7C7CC; }
+
+  /* Filter chips */
+  .filter-scroll {
+    display: flex;
+    gap: 8px;
+    padding: 8px 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .filter-scroll::-webkit-scrollbar { display: none; }
+
+  .chip {
+    padding: 7px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1.5px solid #E5E5EA;
+    background: white;
+    color: #8E8E93;
+    letter-spacing: -0.2px;
+  }
+
+  .chip.active {
+    background: #2D6CDF;
+    color: white;
+    border-color: #2D6CDF;
+  }
+
+  /* Month navigator */
+  .month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px 4px;
+  }
+
+  .month-nav .month-label {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.4px;
+  }
+
+  .month-nav .nav-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    transition: transform 0.15s;
+  }
+
+  .month-nav .nav-btn:active { transform: scale(0.9); }
+
+  /* Transaction group */
+  .tx-group {
+    padding: 0 16px;
+    margin-top: 16px;
+  }
+
+  .tx-group-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8E8E93;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-left: 4px;
+  }
+
+  .tx-footer {
+    margin: 16px 16px 24px;
+    background: white;
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  .tx-footer .footer-label {
+    font-size: 14px;
+    color: #8E8E93;
+    font-weight: 500;
+  }
+
+  .tx-footer .footer-amount {
+    font-size: 17px;
+    font-weight: 700;
+    color: #FF453A;
+    letter-spacing: -0.4px;
+  }
+
+  /* ============ SCREEN 3: ANALYTICS ============ */
+  .period-picker {
+    display: flex;
+    background: white;
+    margin: 16px 16px 0;
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  .period-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    color: #8E8E93;
+    transition: all 0.2s;
+    letter-spacing: -0.2px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .period-btn.active {
+    background: #2D6CDF;
+    color: white;
+    box-shadow: 0 2px 8px rgba(45,108,223,0.3);
+  }
+
+  /* Donut chart */
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 8px 0 4px;
+  }
+
+  .donut-chart {
+    flex-shrink: 0;
+  }
+
+  .donut-legend {
+    flex: 1;
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .legend-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .legend-row-info { flex: 1; }
+
+  .legend-row-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1C1C1E;
+    letter-spacing: -0.2px;
+  }
+
+  .legend-row-amount {
+    font-size: 12px;
+    color: #8E8E93;
+  }
+
+  .legend-row-pct {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1C1C1E;
+  }
+
+  /* Forecast cards */
+  .forecast-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .forecast-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .forecast-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .forecast-icon.blue { background: #EDF3FF; }
+  .forecast-icon.green { background: #EDFFF2; }
+  .forecast-icon.purple { background: #F3EEFF; }
+
+  .forecast-info { flex: 1; }
+
+  .forecast-label {
+    font-size: 13px;
+    color: #8E8E93;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .forecast-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.5px;
+  }
+
+  .forecast-sub {
+    font-size: 12px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+
+  /* ============ SCREEN 4: SAVINGS ============ */
+  .savings-header-card {
+    margin: 16px 16px 0;
+    background: linear-gradient(135deg, #2D6CDF 0%, #7B5CF0 100%);
+    border-radius: 20px;
+    padding: 24px 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(45,108,223,0.35);
+  }
+
+  .savings-header-card::before {
+    content: '';
+    position: absolute;
+    top: -30px; right: -30px;
+    width: 120px; height: 120px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+  }
+
+  .savings-header-card .sh-label {
+    font-size: 14px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .savings-header-card .sh-amount {
+    font-size: 32px;
+    font-weight: 800;
+    color: white;
+    letter-spacing: -1px;
+  }
+
+  .savings-header-card .sh-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 6px;
+  }
+
+  /* Goal cards */
+  .goal-card {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  .goal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .goal-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #EDF3FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .goal-info { flex: 1; }
+
+  .goal-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.3px;
+  }
+
+  .goal-date {
+    font-size: 12px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+
+  .goal-ring {
+    flex-shrink: 0;
+  }
+
+  .goal-amounts {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .goal-saved {
+    font-size: 16px;
+    font-weight: 700;
+    color: #2D6CDF;
+    letter-spacing: -0.4px;
+  }
+
+  .goal-target {
+    font-size: 13px;
+    color: #8E8E93;
+  }
+
+  .goal-progress-bar {
+    height: 8px;
+    background: #F0F4FF;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .goal-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #2D6CDF, #7B5CF0);
+    transition: width 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .add-goal-btn {
+    background: white;
+    border: 2px dashed #D1D1D6;
+    border-radius: 18px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    color: #2D6CDF;
+    font-size: 15px;
+    font-weight: 600;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+    font-family: inherit;
+    width: 100%;
+    letter-spacing: -0.2px;
+  }
+
+  .add-goal-btn:active { background: #F0F4FF; }
+
+  /* Fund cards */
+  .fund-card {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  .fund-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .fund-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: #EDF3FF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .fund-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.2px;
+  }
+
+  .fund-sub {
+    font-size: 12px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+
+  .fund-balance {
+    font-size: 22px;
+    font-weight: 800;
+    color: #2D6CDF;
+    letter-spacing: -0.8px;
+    margin-bottom: 10px;
+  }
+
+  .fund-details {
+    display: flex;
+    gap: 16px;
+  }
+
+  .fund-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .fund-detail-label {
+    font-size: 11px;
+    color: #8E8E93;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .fund-detail-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.3px;
+  }
+
+  /* ============ SCREEN 5: SETTINGS ============ */
+  .settings-profile {
+    background: white;
+    border-radius: 20px;
+    margin: 16px 16px 0;
+    padding: 20px 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+
+  .profile-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .profile-avatar {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 800;
+    color: white;
+  }
+
+  .profile-avatar.ilya { background: linear-gradient(135deg, #2D6CDF, #5B4FD8); }
+  .profile-avatar.maria { background: linear-gradient(135deg, #7B5CF0, #B456D6); }
+
+  .profile-info .profile-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1C1C1E;
+    letter-spacing: -0.3px;
+  }
+
+  .profile-info .profile-role {
+    font-size: 13px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+
+  .settings-divider {
+    height: 20px;
+  }
+
+  .settings-section {
+    background: white;
+    border-radius: 20px;
+    margin: 0 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    margin-bottom: 12px;
+  }
+
+  .settings-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #8E8E93;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 16px 4px;
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    padding: 13px 16px;
+    gap: 12px;
+    position: relative;
+  }
+
+  .settings-row:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 16px;
+    right: 0;
+    height: 0.5px;
+    background: #F2F2F7;
+  }
+
+  .settings-row-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .settings-row-label {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+    color: #1C1C1E;
+    letter-spacing: -0.2px;
+  }
+
+  .settings-row-value {
+    font-size: 14px;
+    color: #8E8E93;
+    font-weight: 500;
+  }
+
+  /* iOS Toggle */
+  .toggle {
+    width: 50px;
+    height: 30px;
+    background: #34C759;
+    border-radius: 15px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.25s;
+    flex-shrink: 0;
+  }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .toggle.off {
+    background: #E5E5EA;
+  }
+
+  .toggle.off::after {
+    transform: translateX(0);
+  }
+
+  .toggle:not(.off)::after {
+    transform: translateX(20px);
+  }
+
+  /* Arrow */
+  .row-arrow {
+    color: #C7C7CC;
+  }
+
+  /* Limit row */
+  .limit-bar-wrap {
+    margin-top: 6px;
+  }
+
+  .limit-bar {
+    height: 4px;
+    background: #F0F4FF;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .limit-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+
+  /* Common utilities */
+  .pb-24 { padding-bottom: 24px; }
+
+  /* Screen padding top to avoid status bar */
+  .screen-content {
+    padding-bottom: 16px;
+  }
+
+  /* Smooth scrollbar in firefox */
+  * { scrollbar-width: none; }
+
+  /* ============ RESPONSIVE for mobile ============ */
+  @media (max-width: 440px) {
+    body {
+      background: #F0F4FF;
+      padding: 0;
+      align-items: flex-start;
+    }
+
+    .device-frame {
+      width: 100%;
+      min-height: 100vh;
+      max-height: none;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .device-screen {
+      border-radius: 0;
+      min-height: 100vh;
+      max-height: none;
+    }
+
+    .dynamic-island { display: none; }
+
+    .status-bar {
+      padding-top: env(safe-area-inset-top, 20px);
+    }
+
+    .fab {
+      right: 16px;
+      bottom: 90px;
+    }
+
+    .bottom-sheet-overlay { border-radius: 0; }
+  }
+
+  /* Mini profile divider in settings */
+  .profile-separator {
+    height: 0.5px;
+    background: #F2F2F7;
+    margin: 0 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="device-frame">
+  <div class="device-screen" id="app">
+    <!-- Dynamic Island -->
+    <div class="dynamic-island"></div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+      <span class="time">9:41</span>
+      <div class="icons">
+        <!-- Signal -->
+        <svg viewBox="0 0 16 12" fill="currentColor" style="color:#1C1C1E">
+          <rect x="0" y="7" width="3" height="5" rx="0.8" opacity="0.4"/>
+          <rect x="4.5" y="5" width="3" height="7" rx="0.8" opacity="0.6"/>
+          <rect x="9" y="2.5" width="3" height="9.5" rx="0.8" opacity="0.8"/>
+          <rect x="13.5" y="0" width="2.5" height="12" rx="0.8"/>
+        </svg>
+        <!-- WiFi -->
+        <svg viewBox="0 0 16 12" fill="currentColor" style="color:#1C1C1E; width:15px">
+          <path d="M8 9.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/>
+          <path d="M8 6.5C9.8 6.5 11.4 7.2 12.6 8.3L14 6.9C12.4 5.4 10.3 4.5 8 4.5S3.6 5.4 2 6.9l1.4 1.4C4.6 7.2 6.2 6.5 8 6.5z" opacity="0.7"/>
+          <path d="M8 3C10.8 3 13.3 4.1 15.1 5.9l1.4-1.4C14.5 2.3 11.4 1 8 1S1.5 2.3-.5 4.5L1 5.9C2.7 4.1 5.2 3 8 3z" opacity="0.4"/>
+        </svg>
+        <!-- Battery -->
+        <svg viewBox="0 0 25 12" fill="currentColor" style="color:#1C1C1E; width:25px; height:12px">
+          <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" stroke-width="1" fill="none" opacity="0.35"/>
+          <rect x="22" y="3.5" width="2.5" height="5" rx="1.2" opacity="0.4"/>
+          <rect x="2" y="2" width="17" height="8" rx="2" fill="#30D158"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Screens -->
+    <div class="screens">
+
+      <!-- ===== SCREEN 1: DASHBOARD ===== -->
+      <div class="screen active" id="screen-0">
+        <!-- Header -->
+        <div class="dashboard-header">
+          <div class="header-top">
+            <div class="greeting">
+              <h2>Добро пожаловать, Илья!</h2>
+              <p>Июнь 2026 · Семейный бюджет</p>
+            </div>
+            <div class="avatar-group">
+              <div class="avatar avatar-ilya">И</div>
+              <div class="avatar avatar-maria">М</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary cards -->
+        <div class="summary-cards">
+          <div class="summary-card">
+            <div class="card-label">Доходы</div>
+            <div class="card-amount income">₪18 500</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-label">Расходы</div>
+            <div class="card-amount expense">₪12 340</div>
+          </div>
+          <div class="summary-card">
+            <div class="card-label">Баланс</div>
+            <div class="card-amount balance">₪6 160</div>
+          </div>
+        </div>
+
+        <!-- Chart section -->
+        <div class="section">
+          <div class="section-header">
+            <span class="section-title">Обзор за месяц</span>
+            <span class="section-link">Подробнее</span>
+          </div>
+          <div class="chart-card">
+            <div class="chart-legend">
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#30D158"></div>
+                <span>Доходы</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-dot" style="background:#FF453A"></div>
+                <span>Расходы</span>
+              </div>
+            </div>
+            <!-- SVG Area Chart -->
+            <svg viewBox="0 0 340 100" width="100%" height="100" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#30D158" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#30D158" stop-opacity="0.02"/>
+                </linearGradient>
+                <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#2D6CDF" stop-opacity="0.25"/>
+                  <stop offset="100%" stop-color="#2D6CDF" stop-opacity="0.02"/>
+                </linearGradient>
+              </defs>
+              <!-- Income area -->
+              <path d="M0,60 C20,55 30,45 50,40 C70,35 80,30 100,25 C120,20 130,28 150,22 C170,16 180,20 200,18 C220,16 230,22 250,20 C270,18 290,15 310,12 C325,10 335,8 340,8 L340,100 L0,100 Z"
+                fill="url(#incomeGrad)"/>
+              <path d="M0,60 C20,55 30,45 50,40 C70,35 80,30 100,25 C120,20 130,28 150,22 C170,16 180,20 200,18 C220,16 230,22 250,20 C270,18 290,15 310,12 C325,10 335,8 340,8"
+                fill="none" stroke="#30D158" stroke-width="2" stroke-linejoin="round"/>
+              <!-- Expense area -->
+              <path d="M0,75 C15,72 25,68 45,65 C65,62 80,55 100,58 C120,61 135,50 155,48 C175,46 185,52 205,50 C225,48 240,44 260,42 C280,40 300,38 320,36 C330,35 335,34 340,33 L340,100 L0,100 Z"
+                fill="url(#expenseGrad)"/>
+              <path d="M0,75 C15,72 25,68 45,65 C65,62 80,55 100,58 C120,61 135,50 155,48 C175,46 185,52 205,50 C225,48 240,44 260,42 C280,40 300,38 320,36 C330,35 335,34 340,33"
+                fill="none" stroke="#2D6CDF" stroke-width="2" stroke-linejoin="round"/>
+              <!-- X axis labels -->
+              <text x="0" y="98" font-size="9" fill="#C7C7CC" font-family="system-ui">1 июн</text>
+              <text x="100" y="98" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">10 июн</text>
+              <text x="200" y="98" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">20 июн</text>
+              <text x="340" y="98" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="end">30 июн</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Recent transactions -->
+        <div class="section">
+          <div class="section-header">
+            <span class="section-title">Последние операции</span>
+            <span class="section-link">Все</span>
+          </div>
+          <div class="transactions-card">
+            <div class="transaction-row">
+              <div class="tx-icon food">🛒</div>
+              <div class="tx-info">
+                <div class="tx-title">Супермаркет Шуферсал</div>
+                <div class="tx-subtitle">Продукты</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪284</div>
+                <div class="tx-date">сегодня</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon income-icon">💰</div>
+              <div class="tx-info">
+                <div class="tx-title">Зарплата</div>
+                <div class="tx-subtitle">Доход</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount pos">+₪9 250</div>
+                <div class="tx-date">вчера</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon utility">⚡</div>
+              <div class="tx-info">
+                <div class="tx-title">Электричество</div>
+                <div class="tx-subtitle">Счета ЖКХ</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪380</div>
+                <div class="tx-date">8 июня</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon delivery">🍕</div>
+              <div class="tx-info">
+                <div class="tx-title">Доставка еды</div>
+                <div class="tx-subtitle">Питание</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪127</div>
+                <div class="tx-date">8 июня</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon transport">🚗</div>
+              <div class="tx-info">
+                <div class="tx-title">Бензин</div>
+                <div class="tx-subtitle">Транспорт</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪210</div>
+                <div class="tx-date">7 июня</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 24px;"></div>
+      </div><!-- /screen-0 -->
+
+      <!-- ===== SCREEN 2: TRANSACTIONS ===== -->
+      <div class="screen" id="screen-1">
+        <!-- Sticky search & filters -->
+        <div style="position:sticky;top:0;z-index:20;background:#F0F4FF;">
+          <div class="search-bar-wrap">
+            <div class="search-bar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input type="text" placeholder="Поиск транзакций...">
+            </div>
+          </div>
+          <div class="filter-scroll">
+            <div class="chip active">Все</div>
+            <div class="chip">Доходы</div>
+            <div class="chip">Расходы</div>
+            <div class="chip">Семейные</div>
+            <div class="chip">Личные</div>
+          </div>
+          <div class="month-nav">
+            <div class="nav-btn">
+              <svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="#2D6CDF" stroke-width="2.5" stroke-linecap="round"><path d="M8 2 L2 8 L8 14"/></svg>
+            </div>
+            <span class="month-label">Июнь 2026</span>
+            <div class="nav-btn">
+              <svg width="10" height="16" viewBox="0 0 10 16" fill="none" stroke="#2D6CDF" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 L8 8 L2 14"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: Today -->
+        <div class="tx-group">
+          <div class="tx-group-header">Сегодня</div>
+          <div class="transactions-card">
+            <div class="transaction-row">
+              <div class="tx-icon food">🛒</div>
+              <div class="tx-info">
+                <div class="tx-title">Супермаркет Шуферсал</div>
+                <div class="tx-subtitle">Продукты · Семейные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪284</div>
+                <div class="tx-date">14:32</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon" style="background:#F0F4FF;">☕</div>
+              <div class="tx-info">
+                <div class="tx-title">Кафе Аромат</div>
+                <div class="tx-subtitle">Питание · Личные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪48</div>
+                <div class="tx-date">09:15</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: Yesterday -->
+        <div class="tx-group">
+          <div class="tx-group-header">Вчера</div>
+          <div class="transactions-card">
+            <div class="transaction-row">
+              <div class="tx-icon income-icon">💰</div>
+              <div class="tx-info">
+                <div class="tx-title">Зарплата — Илья</div>
+                <div class="tx-subtitle">Доход · Личные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount pos">+₪9 250</div>
+                <div class="tx-date">12:00</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon income-icon">💵</div>
+              <div class="tx-info">
+                <div class="tx-title">Зарплата — Мария</div>
+                <div class="tx-subtitle">Доход · Личные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount pos">+₪9 250</div>
+                <div class="tx-date">12:00</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon transport">🚌</div>
+              <div class="tx-info">
+                <div class="tx-title">Автобус Рав-кав</div>
+                <div class="tx-subtitle">Транспорт · Личные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪62</div>
+                <div class="tx-date">08:45</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: 8 June -->
+        <div class="tx-group">
+          <div class="tx-group-header">8 июня</div>
+          <div class="transactions-card">
+            <div class="transaction-row">
+              <div class="tx-icon utility">⚡</div>
+              <div class="tx-info">
+                <div class="tx-title">Электричество</div>
+                <div class="tx-subtitle">Счета ЖКХ · Семейные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪380</div>
+                <div class="tx-date">10:20</div>
+              </div>
+            </div>
+            <div class="transaction-row">
+              <div class="tx-icon delivery">🍕</div>
+              <div class="tx-info">
+                <div class="tx-title">Доставка еды Wolt</div>
+                <div class="tx-subtitle">Питание · Семейные</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount neg">−₪127</div>
+                <div class="tx-date">19:45</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer total -->
+        <div class="tx-footer">
+          <span class="footer-label">Итого расходов</span>
+          <span class="footer-amount">₪12 340</span>
+        </div>
+      </div><!-- /screen-1 -->
+
+      <!-- ===== SCREEN 3: ANALYTICS ===== -->
+      <div class="screen" id="screen-2">
+        <div style="padding: 12px 0 0;">
+          <!-- Period picker -->
+          <div class="period-picker">
+            <div class="period-btn">Неделя</div>
+            <div class="period-btn active">Месяц</div>
+            <div class="period-btn">3 мес</div>
+            <div class="period-btn">Год</div>
+          </div>
+
+          <!-- Mini summary cards -->
+          <div class="summary-cards" style="margin-top:14px;">
+            <div class="summary-card">
+              <div class="card-label">Доходы</div>
+              <div class="card-amount income" style="font-size:13px;">₪18 500</div>
+            </div>
+            <div class="summary-card">
+              <div class="card-label">Расходы</div>
+              <div class="card-amount expense" style="font-size:13px;">₪12 340</div>
+            </div>
+            <div class="summary-card">
+              <div class="card-label">Чистый</div>
+              <div class="card-amount balance" style="font-size:13px;">₪6 160</div>
+            </div>
+          </div>
+
+          <!-- Donut chart section -->
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Расходы по категориям</span>
+            </div>
+            <div class="chart-card">
+              <div class="donut-wrap">
+                <!-- Donut SVG -->
+                <svg class="donut-chart" width="130" height="130" viewBox="0 0 130 130">
+                  <defs>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.12"/>
+                    </filter>
+                  </defs>
+                  <!-- Background circle -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#F0F4FF" stroke-width="20"/>
+                  <!-- Segments: circumference = 2*pi*50 ≈ 314.16 -->
+                  <!-- Питание 32% = 100.5 -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#2D6CDF" stroke-width="20"
+                    stroke-dasharray="100.5 213.66" stroke-dashoffset="0" transform="rotate(-90 65 65)" filter="url(#shadow)"/>
+                  <!-- Счета ЖКХ 21% = 66 — offset -100.5 -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#7B5CF0" stroke-width="20"
+                    stroke-dasharray="65.97 248.19" stroke-dashoffset="-100.5" transform="rotate(-90 65 65)"/>
+                  <!-- Транспорт 15% = 47.1 — offset -166.5 -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#FF9F0A" stroke-width="20"
+                    stroke-dasharray="47.1 267.06" stroke-dashoffset="-166.47" transform="rotate(-90 65 65)"/>
+                  <!-- Здоровье 12% = 37.7 — offset -213.6 -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#30D158" stroke-width="20"
+                    stroke-dasharray="37.7 276.46" stroke-dashoffset="-213.57" transform="rotate(-90 65 65)"/>
+                  <!-- Прочее 20% = 62.8 — offset -251.3 -->
+                  <circle cx="65" cy="65" r="50" fill="none" stroke="#C7C7CC" stroke-width="20"
+                    stroke-dasharray="62.83 251.33" stroke-dashoffset="-251.27" transform="rotate(-90 65 65)"/>
+                  <!-- Center text -->
+                  <text x="65" y="60" text-anchor="middle" font-size="11" fill="#8E8E93" font-family="system-ui" font-weight="500">Итого</text>
+                  <text x="65" y="76" text-anchor="middle" font-size="13" fill="#1C1C1E" font-family="system-ui" font-weight="700">₪12 340</text>
+                </svg>
+
+                <!-- Legend -->
+                <div class="donut-legend">
+                  <div class="legend-row">
+                    <div class="legend-color" style="background:#2D6CDF;"></div>
+                    <div class="legend-row-info">
+                      <div class="legend-row-name">Питание</div>
+                      <div class="legend-row-amount">₪3 948</div>
+                    </div>
+                    <div class="legend-row-pct">32%</div>
+                  </div>
+                  <div class="legend-row">
+                    <div class="legend-color" style="background:#7B5CF0;"></div>
+                    <div class="legend-row-info">
+                      <div class="legend-row-name">Счета ЖКХ</div>
+                      <div class="legend-row-amount">₪2 591</div>
+                    </div>
+                    <div class="legend-row-pct">21%</div>
+                  </div>
+                  <div class="legend-row">
+                    <div class="legend-color" style="background:#FF9F0A;"></div>
+                    <div class="legend-row-info">
+                      <div class="legend-row-name">Транспорт</div>
+                      <div class="legend-row-amount">₪1 851</div>
+                    </div>
+                    <div class="legend-row-pct">15%</div>
+                  </div>
+                  <div class="legend-row">
+                    <div class="legend-color" style="background:#30D158;"></div>
+                    <div class="legend-row-info">
+                      <div class="legend-row-name">Здоровье</div>
+                      <div class="legend-row-amount">₪1 480</div>
+                    </div>
+                    <div class="legend-row-pct">12%</div>
+                  </div>
+                  <div class="legend-row" style="margin-bottom:0">
+                    <div class="legend-color" style="background:#C7C7CC;"></div>
+                    <div class="legend-row-info">
+                      <div class="legend-row-name">Прочее</div>
+                      <div class="legend-row-amount">₪2 470</div>
+                    </div>
+                    <div class="legend-row-pct">20%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Forecasts -->
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Прогнозы</span>
+            </div>
+            <div class="forecast-cards">
+              <div class="forecast-card">
+                <div class="forecast-icon blue">📊</div>
+                <div class="forecast-info">
+                  <div class="forecast-label">Прогноз расходов</div>
+                  <div class="forecast-value">₪13 100</div>
+                  <div class="forecast-sub">следующий месяц · среднее за 3 мес</div>
+                </div>
+              </div>
+              <div class="forecast-card">
+                <div class="forecast-icon green">💵</div>
+                <div class="forecast-info">
+                  <div class="forecast-label">Прогноз дохода</div>
+                  <div class="forecast-value">₪18 500</div>
+                  <div class="forecast-sub">на основе регулярных поступлений</div>
+                </div>
+              </div>
+              <div class="forecast-card">
+                <div class="forecast-icon purple">📅</div>
+                <div class="forecast-info">
+                  <div class="forecast-label">До конца месяца осталось</div>
+                  <div class="forecast-value">₪2 840</div>
+                  <div class="forecast-sub">расчётный остаток бюджета</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bar chart -->
+          <div class="section">
+            <div class="section-header">
+              <span class="section-title">Доходы vs Расходы</span>
+            </div>
+            <div class="chart-card">
+              <div class="chart-legend" style="margin-bottom:16px;">
+                <div class="legend-item">
+                  <div class="legend-dot" style="background:#30D158"></div>
+                  <span>Доходы</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-dot" style="background:#FF453A"></div>
+                  <span>Расходы</span>
+                </div>
+              </div>
+              <!-- Bar chart SVG -->
+              <svg viewBox="0 0 320 110" width="100%" height="110" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="barGreen" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#30D158"/>
+                    <stop offset="100%" stop-color="#1AA048"/>
+                  </linearGradient>
+                  <linearGradient id="barRed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#FF6B63"/>
+                    <stop offset="100%" stop-color="#FF453A"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Jan -->
+                <rect x="4" y="35" width="18" height="55" rx="5" fill="url(#barGreen)" opacity="0.85"/>
+                <rect x="24" y="48" width="18" height="42" rx="5" fill="url(#barRed)" opacity="0.85"/>
+                <text x="22" y="108" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">Янв</text>
+
+                <!-- Feb -->
+                <rect x="58" y="30" width="18" height="60" rx="5" fill="url(#barGreen)" opacity="0.85"/>
+                <rect x="78" y="52" width="18" height="38" rx="5" fill="url(#barRed)" opacity="0.85"/>
+                <text x="76" y="108" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">Фев</text>
+
+                <!-- Mar -->
+                <rect x="112" y="28" width="18" height="62" rx="5" fill="url(#barGreen)" opacity="0.85"/>
+                <rect x="132" y="44" width="18" height="46" rx="5" fill="url(#barRed)" opacity="0.85"/>
+                <text x="130" y="108" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">Мар</text>
+
+                <!-- Apr -->
+                <rect x="166" y="20" width="18" height="70" rx="5" fill="url(#barGreen)" opacity="0.85"/>
+                <rect x="186" y="50" width="18" height="40" rx="5" fill="url(#barRed)" opacity="0.85"/>
+                <text x="184" y="108" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">Апр</text>
+
+                <!-- May -->
+                <rect x="220" y="22" width="18" height="68" rx="5" fill="url(#barGreen)" opacity="0.85"/>
+                <rect x="240" y="46" width="18" height="44" rx="5" fill="url(#barRed)" opacity="0.85"/>
+                <text x="238" y="108" font-size="9" fill="#C7C7CC" font-family="system-ui" text-anchor="middle">Май</text>
+
+                <!-- Jun (current - highlighted) -->
+                <rect x="274" y="18" width="18" height="72" rx="5" fill="url(#barGreen)"/>
+                <rect x="294" y="42" width="18" height="48" rx="5" fill="url(#barRed)"/>
+                <text x="292" y="108" font-size="9" fill="#2D6CDF" font-family="system-ui" text-anchor="middle" font-weight="700">Июн</text>
+              </svg>
+            </div>
+          </div>
+
+          <div style="height:24px;"></div>
+        </div>
+      </div><!-- /screen-2 -->
+
+      <!-- ===== SCREEN 4: SAVINGS ===== -->
+      <div class="screen" id="screen-3">
+        <!-- Savings header card -->
+        <div class="savings-header-card">
+          <div class="sh-label">Всего накоплено</div>
+          <div class="sh-amount">₪47 200</div>
+          <div class="sh-sub">+₪2 400 за этот месяц · +5.4%</div>
+        </div>
+
+        <!-- Goals section -->
+        <div class="section" style="margin-top:20px;">
+          <div class="section-header">
+            <span class="section-title">Цели накоплений</span>
+            <span class="section-link">Все</span>
+          </div>
+
+          <!-- Goal 1: Vacation -->
+          <div class="goal-card">
+            <div class="goal-header">
+              <div class="goal-icon">✈️</div>
+              <div class="goal-info">
+                <div class="goal-name">Отпуск в Европе</div>
+                <div class="goal-date">до 1 авг 2026</div>
+              </div>
+              <!-- Circular progress ring -->
+              <div class="goal-ring">
+                <svg width="52" height="52" viewBox="0 0 52 52">
+                  <circle cx="26" cy="26" r="22" fill="none" stroke="#F0F4FF" stroke-width="5"/>
+                  <circle cx="26" cy="26" r="22" fill="none" stroke="#2D6CDF" stroke-width="5"
+                    stroke-dasharray="138.2 138.2"
+                    stroke-dashoffset="59.4"
+                    transform="rotate(-90 26 26)"
+                    stroke-linecap="round"/>
+                  <text x="26" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="#2D6CDF" font-family="system-ui">57%</text>
+                </svg>
+              </div>
+            </div>
+            <div class="goal-amounts">
+              <span class="goal-saved">₪8 500</span>
+              <span class="goal-target">из ₪15 000</span>
+            </div>
+            <div class="goal-progress-bar">
+              <div class="goal-progress-fill" style="width: 57%;"></div>
+            </div>
+          </div>
+
+          <!-- Goal 2: Car -->
+          <div class="goal-card">
+            <div class="goal-header">
+              <div class="goal-icon">🚗</div>
+              <div class="goal-info">
+                <div class="goal-name">Новый автомобиль</div>
+                <div class="goal-date">до 1 янв 2027</div>
+              </div>
+              <div class="goal-ring">
+                <svg width="52" height="52" viewBox="0 0 52 52">
+                  <circle cx="26" cy="26" r="22" fill="none" stroke="#F0F4FF" stroke-width="5"/>
+                  <circle cx="26" cy="26" r="22" fill="none" stroke="#7B5CF0" stroke-width="5"
+                    stroke-dasharray="138.2 138.2"
+                    stroke-dashoffset="81.5"
+                    transform="rotate(-90 26 26)"
+                    stroke-linecap="round"/>
+                  <text x="26" y="30" text-anchor="middle" font-size="11" font-weight="700" fill="#7B5CF0" font-family="system-ui">41%</text>
+                </svg>
+              </div>
+            </div>
+            <div class="goal-amounts">
+              <span class="goal-saved" style="color:#7B5CF0;">₪32 700</span>
+              <span class="goal-target">из ₪80 000</span>
+            </div>
+            <div class="goal-progress-bar">
+              <div class="goal-progress-fill" style="width: 41%; background: linear-gradient(90deg, #7B5CF0, #B456D6);"></div>
+            </div>
+          </div>
+
+          <button class="add-goal-btn">+ Добавить цель</button>
+        </div>
+
+        <!-- Pension funds -->
+        <div class="section">
+          <div class="section-header">
+            <span class="section-title">Пенсионные фонды</span>
+          </div>
+
+          <div class="fund-card">
+            <div class="fund-header">
+              <div class="fund-icon">🏦</div>
+              <div>
+                <div class="fund-name">Пенсионный фонд</div>
+                <div class="fund-sub">Илья · Купат Гемель</div>
+              </div>
+            </div>
+            <div class="fund-balance">₪124 500</div>
+            <div class="fund-details">
+              <div class="fund-detail">
+                <div class="fund-detail-label">Ежемесячно</div>
+                <div class="fund-detail-value">₪1 850</div>
+              </div>
+              <div class="fund-detail">
+                <div class="fund-detail-label">Работодатель</div>
+                <div class="fund-detail-value">₪1 240</div>
+              </div>
+              <div class="fund-detail">
+                <div class="fund-detail-label">Доходность</div>
+                <div class="fund-detail-value" style="color:#30D158;">+6.2%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fund-card">
+            <div class="fund-header">
+              <div class="fund-icon" style="background:#F3EEFF;">📚</div>
+              <div>
+                <div class="fund-name">Керен Хиштальмут</div>
+                <div class="fund-sub">Илья · Фонд обучения</div>
+              </div>
+            </div>
+            <div class="fund-balance" style="color:#7B5CF0;">₪38 200</div>
+            <div class="fund-details">
+              <div class="fund-detail">
+                <div class="fund-detail-label">Ежемесячно</div>
+                <div class="fund-detail-value">₪620</div>
+              </div>
+              <div class="fund-detail">
+                <div class="fund-detail-label">Доходность</div>
+                <div class="fund-detail-value" style="color:#30D158;">+5.8%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fund-card">
+            <div class="fund-header">
+              <div class="fund-icon" style="background:#FFF0F8;">🏦</div>
+              <div>
+                <div class="fund-name">Пенсионный фонд</div>
+                <div class="fund-sub">Мария · Купат Гемель</div>
+              </div>
+            </div>
+            <div class="fund-balance" style="color:#B456D6;">₪67 300</div>
+            <div class="fund-details">
+              <div class="fund-detail">
+                <div class="fund-detail-label">Ежемесячно</div>
+                <div class="fund-detail-value">₪1 200</div>
+              </div>
+              <div class="fund-detail">
+                <div class="fund-detail-label">Работодатель</div>
+                <div class="fund-detail-value">₪890</div>
+              </div>
+              <div class="fund-detail">
+                <div class="fund-detail-label">Доходность</div>
+                <div class="fund-detail-value" style="color:#30D158;">+7.1%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:24px;"></div>
+      </div><!-- /screen-3 -->
+
+      <!-- ===== SCREEN 5: SETTINGS ===== -->
+      <div class="screen" id="screen-4">
+        <div style="padding: 4px 0 0;">
+          <!-- Profile -->
+          <div class="settings-profile">
+            <div style="font-size:13px;font-weight:600;color:#8E8E93;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">Профиль семьи</div>
+            <div class="profile-row" style="margin-bottom:14px;">
+              <div class="profile-avatar ilya">И</div>
+              <div class="profile-info">
+                <div class="profile-name">Илья</div>
+                <div class="profile-role">Администратор · Основной</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="profile-separator"></div>
+            <div class="profile-row" style="margin-top:14px;">
+              <div class="profile-avatar maria">М</div>
+              <div class="profile-info">
+                <div class="profile-name">Мария</div>
+                <div class="profile-role">Участник · Совместный доступ</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="settings-divider"></div>
+
+          <!-- Notifications -->
+          <div style="font-size:13px;font-weight:600;color:#8E8E93;text-transform:uppercase;letter-spacing:0.5px;padding:0 16px 8px;">Уведомления</div>
+          <div class="settings-section">
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#FFF0ED;">🔔</div>
+              <span class="settings-row-label">Новые транзакции</span>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#FFF9ED;">⚠️</div>
+              <span class="settings-row-label">Превышение лимита</span>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#EDFFF2;">📈</div>
+              <span class="settings-row-label">Еженедельный отчёт</span>
+              <div class="toggle" onclick="this.classList.toggle('off')"></div>
+            </div>
+          </div>
+
+          <!-- Category limits -->
+          <div style="font-size:13px;font-weight:600;color:#8E8E93;text-transform:uppercase;letter-spacing:0.5px;padding:0 16px 8px;">Лимиты по категориям</div>
+          <div class="settings-section">
+            <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+              <div style="display:flex;align-items:center;gap:12px;width:100%;">
+                <div class="settings-row-icon" style="background:#EDF3FF;">🍔</div>
+                <span class="settings-row-label">Питание</span>
+                <span class="settings-row-value">₪4 000/мес</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="limit-bar-wrap" style="padding-left:44px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:#8E8E93;margin-bottom:3px;">
+                  <span>₪3 948 из ₪4 000</span><span style="color:#FF9F0A;">99%</span>
+                </div>
+                <div class="limit-bar">
+                  <div class="limit-bar-fill" style="width:99%;background:#FF9F0A;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+              <div style="display:flex;align-items:center;gap:12px;width:100%;">
+                <div class="settings-row-icon" style="background:#EDF3FF;">🚗</div>
+                <span class="settings-row-label">Транспорт</span>
+                <span class="settings-row-value">₪2 000/мес</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="limit-bar-wrap" style="padding-left:44px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:#8E8E93;margin-bottom:3px;">
+                  <span>₪1 851 из ₪2 000</span><span style="color:#30D158;">93%</span>
+                </div>
+                <div class="limit-bar">
+                  <div class="limit-bar-fill" style="width:93%;background:#30D158;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+              <div style="display:flex;align-items:center;gap:12px;width:100%;">
+                <div class="settings-row-icon" style="background:#F3EEFF;">🎭</div>
+                <span class="settings-row-label">Развлечения</span>
+                <span class="settings-row-value">₪1 500/мес</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="limit-bar-wrap" style="padding-left:44px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:#8E8E93;margin-bottom:3px;">
+                  <span>₪680 из ₪1 500</span><span style="color:#30D158;">45%</span>
+                </div>
+                <div class="limit-bar">
+                  <div class="limit-bar-fill" style="width:45%;background:#2D6CDF;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="settings-row" style="flex-direction:column;align-items:stretch;">
+              <div style="display:flex;align-items:center;gap:12px;width:100%;">
+                <div class="settings-row-icon" style="background:#FFF9ED;">⚡</div>
+                <span class="settings-row-label">Счета ЖКХ</span>
+                <span class="settings-row-value">₪3 500/мес</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
+              <div class="limit-bar-wrap" style="padding-left:44px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:#8E8E93;margin-bottom:3px;">
+                  <span>₪2 591 из ₪3 500</span><span style="color:#30D158;">74%</span>
+                </div>
+                <div class="limit-bar">
+                  <div class="limit-bar-fill" style="width:74%;background:#2D6CDF;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Import -->
+          <div style="font-size:13px;font-weight:600;color:#8E8E93;text-transform:uppercase;letter-spacing:0.5px;padding:0 16px 8px;">Импорт данных</div>
+          <div class="settings-section">
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#EDF3FF;">🏛️</div>
+              <span class="settings-row-label">Импорт из банка</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#EDFFF2;">📤</div>
+              <span class="settings-row-label">Экспорт в Excel</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <!-- About -->
+          <div style="font-size:13px;font-weight:600;color:#8E8E93;text-transform:uppercase;letter-spacing:0.5px;padding:0 16px 8px;">О приложении</div>
+          <div class="settings-section">
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:linear-gradient(135deg,#2D6CDF,#7B5CF0);">
+                <span style="font-size:14px;font-weight:800;color:white;font-family:system-ui;">S</span>
+              </div>
+              <span class="settings-row-label">Skryga</span>
+              <span class="settings-row-value">1.0.0 (1)</span>
+            </div>
+            <div class="settings-row">
+              <div class="settings-row-icon" style="background:#FFF0ED;">🔐</div>
+              <span class="settings-row-label">Политика конфиденциальности</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+
+          <div style="text-align:center;padding:12px 0 24px;font-size:13px;color:#C7C7CC;">
+            Сделано с ❤️ для семьи Скрыга
+          </div>
+        </div>
+      </div><!-- /screen-4 -->
+
+    </div><!-- /screens -->
+
+    <!-- Bottom tab bar -->
+    <div class="tab-bar">
+      <div class="tab-item active" data-tab="0" onclick="switchTab(0)">
+        <div class="tab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </div>
+        <span class="tab-label">Главная</span>
+      </div>
+      <div class="tab-item" data-tab="1" onclick="switchTab(1)">
+        <div class="tab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </div>
+        <span class="tab-label">Операции</span>
+      </div>
+      <div class="tab-item" data-tab="2" onclick="switchTab(2)">
+        <div class="tab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </div>
+        <span class="tab-label">Аналитика</span>
+      </div>
+      <div class="tab-item" data-tab="3" onclick="switchTab(3)">
+        <div class="tab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 12V8H6a2 2 0 0 1 0-4h14v4"/>
+            <path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/>
+            <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+          </svg>
+        </div>
+        <span class="tab-label">Накопления</span>
+      </div>
+      <div class="tab-item" data-tab="4" onclick="switchTab(4)">
+        <div class="tab-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <span class="tab-label">Настройки</span>
+      </div>
+    </div>
+
+    <!-- Floating action button -->
+    <div class="fab" id="fab" onclick="openSheet()" style="position:absolute;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </div>
+
+    <!-- Bottom sheet overlay -->
+    <div class="bottom-sheet-overlay" id="sheetOverlay" onclick="closeSheet()">
+      <div class="bottom-sheet" onclick="event.stopPropagation()">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Добавить транзакцию</div>
+        <div class="sheet-buttons">
+          <button class="sheet-btn expense-btn" onclick="closeSheet()">
+            <span class="btn-icon">💸</span>
+            Расход
+          </button>
+          <button class="sheet-btn income-btn" onclick="closeSheet()">
+            <span class="btn-icon">💰</span>
+            Доход
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /device-screen -->
+</div><!-- /device-frame -->
+
+<script>
+  // ============ TAB SWITCHING ============
+  let currentTab = 0;
+
+  function switchTab(tabIndex) {
+    // Deactivate current
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => {
+      s.classList.remove('active');
+      s.style.transform = '';
+    });
+
+    // Activate new
+    document.querySelector('[data-tab="' + tabIndex + '"]').classList.add('active');
+    const screen = document.getElementById('screen-' + tabIndex);
+    screen.classList.add('active');
+    screen.scrollTop = 0;
+
+    // Show/hide FAB (only on dashboard)
+    const fab = document.getElementById('fab');
+    fab.style.display = tabIndex === 0 ? 'flex' : 'none';
+
+    currentTab = tabIndex;
+  }
+
+  // ============ FAB POSITION ============
+  function updateFabPosition() {
+    const fab = document.getElementById('fab');
+    const tabBar = document.querySelector('.tab-bar');
+    const tabBarHeight = tabBar ? tabBar.offsetHeight : 82;
+    fab.style.bottom = (tabBarHeight + 14) + 'px';
+    fab.style.right = '16px';
+  }
+
+  // ============ BOTTOM SHEET ============
+  function openSheet() {
+    document.getElementById('sheetOverlay').classList.add('visible');
+  }
+
+  function closeSheet() {
+    document.getElementById('sheetOverlay').classList.remove('visible');
+  }
+
+  // ============ PERIOD PICKER ============
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      this.closest('.period-picker').querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // ============ FILTER CHIPS ============
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      this.closest('.filter-scroll').querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // ============ STATUS BAR TIME ============
+  function updateTime() {
+    const now = new Date();
+    let h = now.getHours();
+    let m = now.getMinutes();
+    const timeStr = h + ':' + (m < 10 ? '0' + m : m);
+    document.querySelector('.status-bar .time').textContent = timeStr;
+  }
+  updateTime();
+  setInterval(updateTime, 30000);
+
+  // ============ STATUS BAR STYLE ============
+  function updateStatusBarStyle(tabIndex) {
+    const statusBar = document.getElementById('statusBar');
+    if (tabIndex === 0) {
+      // Dashboard: white text on gradient
+      statusBar.style.background = 'linear-gradient(135deg, #2D6CDF 0%, #5B4FD8 40%, #7B5CF0 100%)';
+      statusBar.querySelector('.time').style.color = 'white';
+      statusBar.querySelectorAll('svg').forEach(s => s.style.color = 'white');
+      const greenFill = statusBar.querySelector('rect[fill="#30D158"]');
+      if (greenFill) greenFill.setAttribute('fill', 'rgba(255,255,255,0.9)');
+    } else {
+      statusBar.style.background = '#F0F4FF';
+      statusBar.querySelector('.time').style.color = '#1C1C1E';
+      statusBar.querySelectorAll('svg').forEach(s => s.style.color = '#1C1C1E');
+      const whiteFill = statusBar.querySelector('rect[fill="rgba(255,255,255,0.9)"]');
+      if (whiteFill) whiteFill.setAttribute('fill', '#30D158');
+    }
+  }
+
+  // Override switchTab to also update status bar style
+  const _baseSwitch = switchTab;
+  window.switchTab = function(tabIndex) {
+    _baseSwitch(tabIndex);
+    updateStatusBarStyle(tabIndex);
+    updateFabPosition();
+  };
+
+  // ============ INIT ============
+  updateStatusBarStyle(0);
+  updateFabPosition();
+
+  // Remove top padding on dashboard header since status bar is separate
+  const dashHeader = document.querySelector('.dashboard-header');
+  if (dashHeader) {
+    dashHeader.style.paddingTop = '16px';
+  }
+
+</script>
+</body>
+</html>
