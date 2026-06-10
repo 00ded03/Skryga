@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { -webkit-tap-highlight-color: transparent; }
+body { background: #F0F4FF; overscroll-behavior: none; }
+::-webkit-scrollbar { display: none; }
+
+@layer components {
+  .card { @apply bg-white rounded-ios-lg shadow-card; }
+  .btn-primary { @apply bg-primary text-white rounded-ios font-semibold py-3 px-6 active:opacity-80 transition-opacity; }
+  .input-field { @apply bg-background rounded-ios px-4 py-3 text-base outline-none w-full; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 20px); }
+}
