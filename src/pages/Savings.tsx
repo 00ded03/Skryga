@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, X, TrendingUp, Landmark, Building2, Edit2, Trash2, ShieldCheck } from 'lucide-react'
+import { Plus, X, TrendingUp, Landmark, Building2, Edit2, Trash2, ShieldCheck, Calendar, Clock } from 'lucide-react'
 import { db } from '../db/database'
-import { formatCurrency } from '../lib/currency'
+import { formatCurrency, fmtInputNum, parseInputNum } from '../lib/currency'
 import { useScrollLock } from '../hooks/useScrollLock'
 import type { SavingsGoal, PensionFund } from '../types'
 import * as LucideIcons from 'lucide-react'
@@ -10,14 +10,22 @@ import * as LucideIcons from 'lucide-react'
 const GOAL_ICONS = ['Plane', 'Car', 'Home', 'Laptop', 'Gem', 'Heart', 'Book', 'ShoppingBag', 'Gamepad2', 'Baby']
 const GOAL_COLORS = ['#2D6CDF', '#7B5CF0', '#FF6B6B', '#30D158', '#FFB347', '#FF9671', '#4ECDC4', '#845EC2']
 
-function CircleProgress({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) {
-  const r = (size - 8) / 2
+const MONTHS_RU = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+
+function formatDeadline(date?: Date) {
+  if (!date) return null
+  const d = new Date(date)
+  return `${d.getDate()} ${MONTHS_RU[d.getMonth()]} ${d.getFullYear()}`
+}
+
+function CircleProgress({ pct, color, size = 64, strokeWidth = 6 }: { pct: number; color: string; size?: number; strokeWidth?: number }) {
+  const r = (size - strokeWidth) / 2
   const circ = 2 * Math.PI * r
   const dash = (Math.min(pct, 100) / 100) * circ
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F0F4FF" strokeWidth={6} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={6}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F0F4FF" strokeWidth={strokeWidth} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
         strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
     </svg>
   )
@@ -44,6 +52,115 @@ function FundTypeBadge({ type }: { type: PensionFund['fundType'] }) {
   return (
     <span className="text-xs font-medium px-2 py-0.5 rounded-full"
       style={{ backgroundColor: color + '20', color }}>{label}</span>
+  )
+}
+
+function StatBox({ label, value, color, highlight, icon }: {
+  label: string; value: string; color?: string; highlight?: boolean; icon?: React.ReactNode
+}) {
+  return (
+    <div className={`rounded-ios p-3 ${highlight ? 'bg-primary/10' : 'bg-background'}`}>
+      <div className="flex items-center gap-1 mb-1">
+        {icon && <span className="text-muted">{icon}</span>}
+        <p className="text-[11px] text-muted font-medium">{label}</p>
+      </div>
+      <p className="text-base font-bold" style={{ color: color ?? (highlight ? '#2D6CDF' : '#111827') }}>{value}</p>
+    </div>
+  )
+}
+
+function GoalDetailSheet({ goal, onClose, onDeposit }: { goal: SavingsGoal; onClose: () => void; onDeposit: () => void }) {
+  useScrollLock()
+
+  const pct = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0
+  const remaining = Math.max(0, goal.targetAmount - goal.currentAmount)
+  const isCompleted = goal.currentAmount >= goal.targetAmount
+
+  let daysLeft: number | null = null
+  let monthlyNeeded: number | null = null
+  let deadlineFormatted: string | null = null
+
+  if (goal.deadline) {
+    const today = new Date()
+    const deadline = new Date(goal.deadline)
+    const msLeft = deadline.getTime() - today.getTime()
+    daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24))
+    const monthsLeft = msLeft / (1000 * 60 * 60 * 24 * 30.44)
+    monthlyNeeded = monthsLeft > 0.5 ? Math.ceil(remaining / monthsLeft) : null
+    deadlineFormatted = formatDeadline(deadline)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col" style={{ maxHeight: '88dvh' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex-shrink-0 px-5 pt-5 pb-3 border-b border-black/5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <GoalIcon iconName={goal.iconName} color={goal.colorHex} size={20} />
+              <h3 className="text-base font-semibold text-gray-900">{goal.title}</h3>
+            </div>
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:opacity-70">
+              <X size={18} color="#8E8E93" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
+          {/* Large progress circle */}
+          <div className="flex flex-col items-center py-6">
+            <div className="relative">
+              <CircleProgress pct={pct} color={goal.colorHex} size={160} strokeWidth={10} />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+                <p className="text-3xl font-bold" style={{ color: goal.colorHex }}>{Math.round(pct)}%</p>
+                {isCompleted && <p className="text-xs font-semibold text-income">Выполнено!</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="px-5 pb-5 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <StatBox label="Накоплено" value={formatCurrency(goal.currentAmount)} color={goal.colorHex} />
+              <StatBox label="Цель" value={formatCurrency(goal.targetAmount)} />
+            </div>
+            {remaining > 0 && (
+              <StatBox label="Осталось накопить" value={formatCurrency(remaining)} />
+            )}
+            {deadlineFormatted && daysLeft !== null && (
+              <div className="grid grid-cols-2 gap-3">
+                <StatBox label="Дедлайн" value={deadlineFormatted}
+                  icon={<Calendar size={12} />} />
+                <StatBox
+                  label={daysLeft > 0 ? 'Дней осталось' : 'Просрочено на'}
+                  value={String(Math.abs(daysLeft))}
+                  color={daysLeft < 0 ? '#FF453A' : daysLeft < 30 ? '#FF9500' : undefined}
+                  icon={<Clock size={12} />} />
+              </div>
+            )}
+            {monthlyNeeded !== null && remaining > 0 && (
+              <StatBox
+                label="Нужно откладывать в месяц"
+                value={formatCurrency(monthlyNeeded)}
+                highlight />
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        {!isCompleted && (
+          <div className="flex-shrink-0 px-5 pt-2 pb-4 border-t border-black/5"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+            <button onClick={onDeposit} className="btn-primary w-full">Пополнить</button>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -124,8 +241,8 @@ function GoalModal({
   onClose: () => void
 }) {
   const [title, setTitle] = useState(goal?.title ?? '')
-  const [targetAmount, setTargetAmount] = useState(goal ? String(goal.targetAmount) : '')
-  const [currentAmount, setCurrentAmount] = useState(goal ? String(goal.currentAmount) : '')
+  const [targetAmount, setTargetAmount] = useState(goal ? fmtInputNum(String(goal.targetAmount)) : '')
+  const [currentAmount, setCurrentAmount] = useState(goal ? fmtInputNum(String(goal.currentAmount)) : '')
   const [deadline, setDeadline] = useState(
     goal?.deadline ? new Date(goal.deadline).toISOString().slice(0, 10) : ''
   )
@@ -138,12 +255,12 @@ function GoalModal({
     if (!title || !targetAmount) return
     const data = {
       title,
-      targetAmount: parseFloat(targetAmount),
-      currentAmount: parseFloat(currentAmount) || 0,
+      targetAmount: parseInputNum(targetAmount),
+      currentAmount: parseInputNum(currentAmount),
       deadline: deadline ? new Date(deadline) : undefined,
       iconName: selectedIcon,
       colorHex: selectedColor,
-      isCompleted: parseFloat(currentAmount) >= parseFloat(targetAmount),
+      isCompleted: parseInputNum(currentAmount) >= parseInputNum(targetAmount),
       createdAt: goal?.createdAt ?? new Date(),
     }
     if (isEdit && goal.id) {
@@ -170,13 +287,13 @@ function GoalModal({
             onChange={e => setTitle(e.target.value)} className="input-field" />
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">₪</span>
-            <input type="number" placeholder="Целевая сумма" value={targetAmount}
-              onChange={e => setTargetAmount(e.target.value)} className="input-field pl-7" />
+            <input type="text" inputMode="numeric" placeholder="0" value={targetAmount}
+              onChange={e => setTargetAmount(fmtInputNum(e.target.value))} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">₪</span>
-            <input type="number" placeholder="Уже накоплено" value={currentAmount}
-              onChange={e => setCurrentAmount(e.target.value)} className="input-field pl-7" />
+            <input type="text" inputMode="numeric" placeholder="0" value={currentAmount}
+              onChange={e => setCurrentAmount(fmtInputNum(e.target.value))} className="input-field pl-7" />
           </div>
           <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input-field" />
           <div>
@@ -225,8 +342,8 @@ function FundModal({
   const [name, setName] = useState(fund?.name ?? '')
   const [fundType, setFundType] = useState<PensionFund['fundType']>(fund?.fundType ?? 'pension')
   const [owner, setOwner] = useState<PensionFund['owner']>(fund?.owner ?? 'ilya')
-  const [balance, setBalance] = useState(fund ? String(fund.currentBalance) : '')
-  const [monthly, setMonthly] = useState(fund ? String(fund.monthlyContribution) : '')
+  const [balance, setBalance] = useState(fund ? fmtInputNum(String(fund.currentBalance)) : '')
+  const [monthly, setMonthly] = useState(fund ? fmtInputNum(String(fund.monthlyContribution)) : '')
   const [employer, setEmployer] = useState(fund ? String(fund.employerContributionPercent) : '')
 
   const isEdit = !!fund
@@ -236,8 +353,8 @@ function FundModal({
     const data = {
       name,
       fundType,
-      currentBalance: parseFloat(balance) || 0,
-      monthlyContribution: parseFloat(monthly) || 0,
+      currentBalance: parseInputNum(balance),
+      monthlyContribution: parseInputNum(monthly),
       employerContributionPercent: parseFloat(employer) || 0,
       owner,
       lastUpdated: new Date(),
@@ -285,13 +402,13 @@ function FundModal({
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">₪</span>
-            <input type="number" placeholder="Текущий баланс" value={balance}
-              onChange={e => setBalance(e.target.value)} className="input-field pl-7" />
+            <input type="text" inputMode="numeric" placeholder="0" value={balance}
+              onChange={e => setBalance(fmtInputNum(e.target.value))} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">₪</span>
-            <input type="number" placeholder="Взнос в месяц" value={monthly}
-              onChange={e => setMonthly(e.target.value)} className="input-field pl-7" />
+            <input type="text" inputMode="numeric" placeholder="0" value={monthly}
+              onChange={e => setMonthly(fmtInputNum(e.target.value))} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted text-sm">%</span>
@@ -315,6 +432,7 @@ export default function Savings() {
   const funds = useLiveQuery(() => db.pensionFunds.toArray(), [])
 
   const [depositGoal, setDepositGoal] = useState<SavingsGoal | null>(null)
+  const [detailGoal, setDetailGoal] = useState<SavingsGoal | null>(null)
   const [editGoal, setEditGoal] = useState<SavingsGoal | undefined>(undefined)
   const [showAddGoal, setShowAddGoal] = useState(false)
   const [editFund, setEditFund] = useState<PensionFund | undefined>(undefined)
@@ -323,13 +441,6 @@ export default function Savings() {
 
   const totalSaved = goals?.reduce((s, g) => s + g.currentAmount, 0) ?? 0
   const totalTarget = goals?.reduce((s, g) => s + g.targetAmount, 0) ?? 0
-
-  const MONTHS_RU = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
-  function formatDeadline(date?: Date) {
-    if (!date) return null
-    const d = new Date(date)
-    return `${d.getDate()} ${MONTHS_RU[d.getMonth()]} ${d.getFullYear()}`
-  }
 
   function askDelete(message: string, onConfirm: () => void) {
     setConfirmDelete({ message, onConfirm })
@@ -372,7 +483,8 @@ export default function Savings() {
           {goals?.map(goal => {
             const pct = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0
             return (
-              <div key={goal.id} className="card p-4 mb-3">
+              <div key={goal.id} className="card p-4 mb-3 active:opacity-90 cursor-pointer"
+                onClick={() => setDetailGoal(goal)}>
                 <div className="flex items-center gap-3 mb-3">
                   <div className="relative flex-shrink-0">
                     <CircleProgress pct={pct} color={goal.colorHex} size={64} />
@@ -393,7 +505,7 @@ export default function Savings() {
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <p className="text-lg font-bold" style={{ color: goal.colorHex }}>{Math.round(pct)}%</p>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                       <button onClick={() => setEditGoal(goal)}
                         className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center active:opacity-70">
                         <Edit2 size={13} color="#2D6CDF" />
@@ -411,7 +523,7 @@ export default function Savings() {
                     style={{ width: `${Math.min(100, pct)}%`, backgroundColor: goal.colorHex }} />
                 </div>
 
-                <button onClick={() => setDepositGoal(goal)}
+                <button onClick={e => { e.stopPropagation(); setDepositGoal(goal) }}
                   className="w-full py-2 rounded-ios border border-primary text-primary text-sm font-medium active:opacity-70">
                   Пополнить
                 </button>
@@ -478,6 +590,13 @@ export default function Savings() {
 
       {/* Modals */}
       {depositGoal && <DepositSheet goal={depositGoal} onClose={() => setDepositGoal(null)} />}
+      {detailGoal && !depositGoal && (
+        <GoalDetailSheet
+          goal={detailGoal}
+          onClose={() => setDetailGoal(null)}
+          onDeposit={() => { setDepositGoal(detailGoal); setDetailGoal(null) }}
+        />
+      )}
       {showAddGoal && <GoalModal onClose={() => setShowAddGoal(false)} />}
       {editGoal && <GoalModal goal={editGoal} onClose={() => setEditGoal(undefined)} />}
       {showAddFund && <FundModal onClose={() => setShowAddFund(false)} />}
