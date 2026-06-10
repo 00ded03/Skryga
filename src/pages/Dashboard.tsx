@@ -34,7 +34,7 @@ function CategoryIcon({ categoryKey, size = 20 }: { categoryKey: string; size?: 
 function OwnerBadge({ owner }: { owner: Transaction['owner'] }) {
   const map = {
     family: { label: 'С', color: '#2D6CDF' },
-    ilya: { label: 'И', color: '#2D6CDF' },
+    ilya: { label: 'Ф', color: '#2D6CDF' },
     anastasia: { label: 'А', color: '#7B5CF0' },
   }
   const { label, color } = map[owner]
@@ -149,21 +149,26 @@ export default function Dashboard() {
         className="pt-12 pb-6 px-4"
         style={{ background: 'linear-gradient(135deg, #2D6CDF 0%, #7B5CF0 100%)' }}
       >
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-white text-xl font-bold">
-              {`${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${settings?.member1Name ?? 'Филипп'}!`}
-            </h1>
-            <p className="text-white/70 text-sm capitalize">{todayLabel}</p>
+        {/* Logo row */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <img src="/icon-192.png" alt="Скряга" className="w-8 h-8 rounded-xl" />
+            <span className="text-white/90 text-sm font-semibold tracking-wide">Скряга</span>
           </div>
           <div className="flex gap-2">
             <div className="w-9 h-9 rounded-full bg-primary/80 flex items-center justify-center border-2 border-white/40">
-              <span className="text-white text-sm font-bold">И</span>
+              <span className="text-white text-sm font-bold">Ф</span>
             </div>
             <div className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-white/40" style={{ background: '#7B5CF0' }}>
               <span className="text-white text-sm font-bold">А</span>
             </div>
           </div>
+        </div>
+        <div className="mb-3">
+          <h1 className="text-white text-xl font-bold">
+            {`${new Date().getHours() < 12 ? 'Доброе утро' : new Date().getHours() < 18 ? 'Добрый день' : 'Добрый вечер'}, ${settings?.member1Name ?? 'Филипп'}!`}
+          </h1>
+          <p className="text-white/70 text-sm capitalize">{todayLabel}</p>
         </div>
 
         {/* Balance hero */}

@@ -25,7 +25,7 @@ function CategoryIcon({ categoryKey, size = 18 }: { categoryKey: string; size?: 
 function OwnerBadge({ owner }: { owner: Transaction['owner'] }) {
   const map = {
     family: { label: 'С', color: '#2D6CDF' },
-    ilya: { label: 'И', color: '#2D6CDF' },
+    ilya: { label: 'Ф', color: '#2D6CDF' },
     anastasia: { label: 'А', color: '#7B5CF0' },
   }
   const { label, color } = map[owner]
