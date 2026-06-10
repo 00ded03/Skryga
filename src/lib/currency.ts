@@ -85,6 +85,18 @@ export function getMonthEnd(date?: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
 }
 
+/** Format a numeric string with thousands spaces for input display: "400000" → "400 000" */
+export function fmtInputNum(v: string): string {
+  const digits = v.replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+}
+
+/** Strip spaces and parse to number */
+export function parseInputNum(v: string): number {
+  return parseFloat(v.replace(/[\s ]/g, '')) || 0
+}
+
 export function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
