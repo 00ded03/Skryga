@@ -32,7 +32,7 @@ export interface SavingsGoal {
 export interface PensionFund {
   id?: number
   name: string
-  fundType: 'pension' | 'keren_hishtalmut' | 'investment'
+  fundType: 'pension' | 'keren_hishtalmut' | 'pitzuim' | 'investment'
   currentBalance: number
   monthlyContribution: number
   employerContributionPercent: number
