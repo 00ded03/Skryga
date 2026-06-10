@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight, Trash2, X, Check } from 'lucide-react'
 import { db } from '../db/database'
-import { getCategoryByKey, getSubcategoryByKey } from '../data/categories'
+import { getCategoryByKey, getSubcategoryByKey, expenseCategories, incomeCategories } from '../data/categories'
 import {
   formatCurrency,
   formatDateRelative,
@@ -11,7 +11,7 @@ import {
   getMonthEnd,
 } from '../lib/currency'
 import { useStore } from '../store/useStore'
-import type { Transaction } from '../types'
+import type { Transaction, AppCategory, BudgetOwner } from '../types'
 import * as LucideIcons from 'lucide-react'
 
 function CategoryIcon({ categoryKey, size = 18 }: { categoryKey: string; size?: number }) {
@@ -30,36 +30,245 @@ function OwnerBadge({ owner }: { owner: Transaction['owner'] }) {
   }
   const { label, color } = map[owner]
   return (
-    <span
-      className="text-white text-[10px] font-bold rounded-full flex items-center justify-center flex-shrink-0"
-      style={{ backgroundColor: color, width: 16, height: 16, fontSize: 9 }}
-    >
+    <span className="text-white text-[10px] font-bold rounded-full flex items-center justify-center flex-shrink-0"
+      style={{ backgroundColor: color, width: 16, height: 16, fontSize: 9 }}>
       {label}
     </span>
   )
 }
 
+// ── Edit Transaction Sheet ──────────────────────────────────────────────────
+const OWNER_OPTIONS: { value: BudgetOwner; label: string; color: string }[] = [
+  { value: 'family', label: 'Семейные', color: '#2D6CDF' },
+  { value: 'ilya', label: 'Филипп', color: '#2D6CDF' },
+  { value: 'anastasia', label: 'Анастасия', color: '#7B5CF0' },
+]
+
+function EditTransactionSheet({ tx, onClose }: { tx: Transaction; onClose: () => void }) {
+  const [amountStr, setAmountStr] = useState(String(tx.amount))
+  const [title, setTitle] = useState(tx.title)
+  const [date, setDate] = useState(() => new Date(tx.date).toISOString().slice(0, 10))
+  const [owner, setOwner] = useState<BudgetOwner>(tx.owner)
+  const [notes, setNotes] = useState(tx.notes ?? '')
+  const [selectedCategory, setSelectedCategory] = useState<AppCategory | null>(
+    getCategoryByKey(tx.categoryKey) ?? null
+  )
+  const [saving, setSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  // Body scroll lock
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = prev
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
+  }, [])
+
+  const categories = tx.type === 'expense' ? expenseCategories : incomeCategories
+
+  async function handleSave() {
+    const amount = parseFloat(amountStr)
+    if (!amount || amount <= 0 || !selectedCategory) return
+    setSaving(true)
+    try {
+      await db.transactions.update(tx.id!, {
+        amount,
+        title: title || selectedCategory.nameRu,
+        date: new Date(date),
+        owner,
+        notes: notes || undefined,
+        categoryKey: selectedCategory.key,
+      })
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (tx.id) await db.transactions.delete(tx.id)
+    onClose()
+  }
+
+  const cat = getCategoryByKey(tx.categoryKey)
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col"
+        style={{ maxHeight: '90dvh' }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-4 pt-4 pb-2 border-b border-black/5">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: cat?.color || '#999' }}>
+              <CategoryIcon categoryKey={tx.categoryKey} size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Редактировать</p>
+              <p className="text-xs text-muted">{cat?.nameRu}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:opacity-70">
+            <X size={18} color="#8E8E93" />
+          </button>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ overscrollBehavior: 'contain' }}>
+
+          {/* Amount */}
+          <div className="card p-3">
+            <p className="text-xs text-muted font-medium mb-1.5">Сумма</p>
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold" style={{ color: tx.type === 'income' ? '#30D158' : '#FF453A' }}>₪</span>
+              <input
+                type="number"
+                value={amountStr}
+                onChange={e => setAmountStr(e.target.value)}
+                className="text-3xl font-bold flex-1 bg-transparent outline-none"
+                style={{ color: tx.type === 'income' ? '#30D158' : '#FF453A' }}
+              />
+            </div>
+          </div>
+
+          {/* Category */}
+          <div className="card p-3">
+            <p className="text-xs text-muted font-medium uppercase tracking-wide mb-2">Категория</p>
+            <div className="grid grid-cols-4 gap-2">
+              {categories.map(c => {
+                const isSelected = selectedCategory?.key === c.key
+                const iconKey = c.icon as keyof typeof LucideIcons
+                const Icon = (LucideIcons[iconKey] as React.FC<{ size?: number; color?: string }>) || LucideIcons.MoreHorizontal
+                return (
+                  <button key={c.key} onClick={() => setSelectedCategory(c)}
+                    className="flex flex-col items-center gap-1 active:opacity-70">
+                    <div className="w-10 h-10 rounded-ios flex items-center justify-center transition-all"
+                      style={{
+                        backgroundColor: c.color,
+                        boxShadow: isSelected ? `0 0 0 3px ${c.color}60` : 'none',
+                        transform: isSelected ? 'scale(1.08)' : 'scale(1)',
+                      }}>
+                      <Icon size={20} color="#fff" />
+                    </div>
+                    <span className="text-[10px] text-center leading-tight text-gray-700 truncate w-full">{c.nameRu}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Fields */}
+          <div className="card p-3 space-y-3">
+            <div>
+              <p className="text-xs text-muted font-medium mb-1">Название</p>
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                className="input-field" />
+            </div>
+            <div>
+              <p className="text-xs text-muted font-medium mb-1">Дата</p>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="input-field" />
+            </div>
+            <div>
+              <p className="text-xs text-muted font-medium mb-2">Кто платит</p>
+              <div className="flex gap-2">
+                {OWNER_OPTIONS.map(opt => (
+                  <button key={opt.value} onClick={() => setOwner(opt.value)}
+                    className={`flex-1 py-2.5 rounded-ios text-sm font-medium transition-colors ${owner === opt.value ? 'text-white' : 'bg-background text-muted'}`}
+                    style={owner === opt.value ? { backgroundColor: opt.color } : {}}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted font-medium mb-1">Заметка</p>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)}
+                rows={2} className="input-field resize-none" />
+            </div>
+          </div>
+
+          {/* Delete */}
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full py-3 rounded-ios border border-expense/30 text-expense text-sm font-medium flex items-center justify-center gap-2 active:opacity-70"
+          >
+            <Trash2 size={16} />
+            Удалить операцию
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 px-4 pt-2 pb-2 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleSave} disabled={saving}
+            className="btn-primary w-full flex items-center justify-center gap-2">
+            {saving
+              ? <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              : <><Check size={18} />Сохранить</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Confirm delete */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-6"
+          onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-card-lg">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">Удалить операцию?</h3>
+            <p className="text-sm text-muted mb-5">«{tx.title}» — {formatCurrency(tx.amount)}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3 bg-background rounded-ios text-sm font-medium text-gray-900 active:opacity-70">
+                Отмена
+              </button>
+              <button onClick={handleDelete}
+                className="flex-1 py-3 bg-expense rounded-ios text-white text-sm font-semibold active:opacity-70">
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Swipeable row ───────────────────────────────────────────────────────────
 const SWIPE_THRESHOLD = 60
 
 function SwipeableTransactionRow({
   tx,
   onDelete,
+  onEdit,
 }: {
   tx: Transaction
   onDelete: (id: number) => void
+  onEdit: (tx: Transaction) => void
 }) {
   const [offsetX, setOffsetX] = useState(0)
   const [showDelete, setShowDelete] = useState(false)
   const startXRef = useRef(0)
+  const didSwipeRef = useRef(false)
   const cat = getCategoryByKey(tx.categoryKey)
   const subcat = tx.subcategoryKey ? getSubcategoryByKey(tx.categoryKey, tx.subcategoryKey) : null
 
   function handleTouchStart(e: React.TouchEvent) {
     startXRef.current = e.touches[0].clientX
+    didSwipeRef.current = false
   }
 
   function handleTouchMove(e: React.TouchEvent) {
     const dx = e.touches[0].clientX - startXRef.current
+    if (dx < -5) didSwipeRef.current = true
     if (dx < 0) setOffsetX(Math.max(dx, -80))
   }
 
@@ -73,40 +282,38 @@ function SwipeableTransactionRow({
     }
   }
 
+  function handleRowClick() {
+    if (showDelete) {
+      setOffsetX(0)
+      setShowDelete(false)
+    } else if (!didSwipeRef.current) {
+      onEdit(tx)
+    }
+  }
+
   return (
     <div className="relative overflow-hidden">
       {/* Delete button */}
-      <div
-        className="absolute inset-y-0 right-0 w-20 bg-expense flex items-center justify-center"
-        style={{ opacity: showDelete ? 1 : Math.min(1, -offsetX / 72) }}
-      >
-        <button
-          className="flex flex-col items-center gap-1 active:opacity-70"
-          onClick={() => tx.id && onDelete(tx.id)}
-        >
+      <div className="absolute inset-y-0 right-0 w-20 bg-expense flex items-center justify-center"
+        style={{ opacity: showDelete ? 1 : Math.min(1, -offsetX / 72) }}>
+        <button className="flex flex-col items-center gap-1 active:opacity-70"
+          onClick={() => tx.id && onDelete(tx.id)}>
           <Trash2 size={20} color="#fff" />
           <span className="text-white text-[10px]">Удалить</span>
         </button>
       </div>
 
-      {/* Row content */}
+      {/* Row */}
       <div
-        className="flex items-center gap-3 py-3 px-4 bg-white border-b border-black/5 last:border-0 transition-transform"
-        style={{ transform: `translateX(${offsetX}px)` }}
+        className="flex items-center gap-3 py-3 px-4 bg-white border-b border-black/5 last:border-0"
+        style={{ transform: `translateX(${offsetX}px)`, transition: offsetX === 0 || offsetX === -72 ? 'transform 0.2s' : 'none' }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={() => {
-          if (showDelete) {
-            setOffsetX(0)
-            setShowDelete(false)
-          }
-        }}
+        onClick={handleRowClick}
       >
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: cat?.color || '#999' }}
-        >
+        <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: cat?.color || '#999' }}>
           <CategoryIcon categoryKey={tx.categoryKey} size={18} />
         </div>
         <div className="flex-1 min-w-0">
@@ -117,18 +324,18 @@ function SwipeableTransactionRow({
           </div>
         </div>
         <div className="text-right flex-shrink-0">
-          <p
-            className="text-sm font-semibold"
-            style={{ color: tx.type === 'income' ? '#30D158' : '#FF453A' }}
-          >
+          <p className="text-sm font-semibold"
+            style={{ color: tx.type === 'income' ? '#30D158' : '#FF453A' }}>
             {tx.type === 'income' ? '+' : '-'}{formatCurrency(tx.amount)}
           </p>
+          <p className="text-xs text-muted">{formatDateRelative(tx.date)}</p>
         </div>
       </div>
     </div>
   )
 }
 
+// ── Main page ───────────────────────────────────────────────────────────────
 type FilterType = 'all' | 'income' | 'expense' | 'family' | 'personal'
 
 const FILTER_LABELS: Record<FilterType, string> = {
@@ -142,58 +349,45 @@ const FILTER_LABELS: Record<FilterType, string> = {
 export default function Transactions() {
   const { activeMonth, setActiveMonth, transactionFilter, setTransactionFilter } = useStore()
   const [searchText, setSearchText] = useState('')
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null)
 
   const monthDate = activeMonth instanceof Date ? activeMonth : new Date(activeMonth)
   const monthStart = getMonthStart(monthDate)
   const monthEnd = getMonthEnd(monthDate)
 
   const transactions = useLiveQuery(
-    () =>
-      db.transactions
-        .where('date')
-        .between(monthStart, monthEnd, true, true)
-        .reverse()
-        .sortBy('date'),
+    () => db.transactions.where('date').between(monthStart, monthEnd, true, true).reverse().sortBy('date'),
     [monthStart.getTime(), monthEnd.getTime()],
   )
 
-  // Filter
   const filtered = React.useMemo(() => {
     if (!transactions) return []
-    return transactions.filter((tx) => {
+    return transactions.filter(tx => {
       if (transactionFilter === 'income' && tx.type !== 'income') return false
       if (transactionFilter === 'expense' && tx.type !== 'expense') return false
       if (transactionFilter === 'family' && tx.owner !== 'family') return false
       if (transactionFilter === 'personal' && tx.owner === 'family') return false
       if (searchText) {
         const q = searchText.toLowerCase()
-        if (
-          !tx.title.toLowerCase().includes(q) &&
-          !tx.merchantName?.toLowerCase().includes(q)
-        )
-          return false
+        if (!tx.title.toLowerCase().includes(q) && !tx.merchantName?.toLowerCase().includes(q)) return false
       }
       return true
     })
   }, [transactions, transactionFilter, searchText])
 
-  // Group by date
   const grouped = React.useMemo(() => {
     const groups: { dateLabel: string; date: Date; txs: Transaction[] }[] = []
     for (const tx of filtered) {
       const label = formatDateRelative(tx.date)
-      const existing = groups.find((g) => g.dateLabel === label)
-      if (existing) {
-        existing.txs.push(tx)
-      } else {
-        groups.push({ dateLabel: label, date: tx.date, txs: [tx] })
-      }
+      const existing = groups.find(g => g.dateLabel === label)
+      if (existing) existing.txs.push(tx)
+      else groups.push({ dateLabel: label, date: tx.date, txs: [tx] })
     }
     return groups
   }, [filtered])
 
-  const totalIncome = filtered.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalExpenses = filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
 
   function prevMonth() {
     const d = new Date(monthDate)
@@ -215,36 +409,22 @@ export default function Transactions() {
     <div className="min-h-screen bg-background pb-28">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background pt-12 pb-2 px-4 shadow-sm">
-        {/* Search */}
         <div className="relative mb-3">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            type="text"
-            placeholder="Поиск операций..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="input-field pl-9 text-sm bg-white border border-black/5"
-          />
+          <input type="text" placeholder="Поиск операций..." value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            className="input-field pl-9 text-sm bg-white border border-black/5" />
         </div>
-
-        {/* Filter chips */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {(Object.keys(FILTER_LABELS) as FilterType[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setTransactionFilter(f)}
+          {(Object.keys(FILTER_LABELS) as FilterType[]).map(f => (
+            <button key={f} onClick={() => setTransactionFilter(f)}
               className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                transactionFilter === f
-                  ? 'bg-primary text-white'
-                  : 'bg-white text-muted border border-black/8'
-              }`}
-            >
+                transactionFilter === f ? 'bg-primary text-white' : 'bg-white text-muted border border-black/8'
+              }`}>
               {FILTER_LABELS[f]}
             </button>
           ))}
         </div>
-
-        {/* Month navigator */}
         <div className="flex items-center justify-center gap-4 mt-2 pb-1">
           <button onClick={prevMonth} className="p-1 active:opacity-70">
             <ChevronLeft size={20} color="#2D6CDF" />
@@ -263,28 +443,24 @@ export default function Transactions() {
         {grouped.length === 0 && (
           <p className="text-center text-muted text-sm py-16">Операций не найдено</p>
         )}
-        {grouped.map((group) => (
+        {grouped.map(group => (
           <div key={group.dateLabel} className="mb-4">
             <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-1.5 px-1">
               {group.dateLabel}
             </p>
             <div className="card overflow-hidden">
-              {group.txs.map((tx) => (
-                <SwipeableTransactionRow key={tx.id} tx={tx} onDelete={handleDelete} />
+              {group.txs.map(tx => (
+                <SwipeableTransactionRow key={tx.id} tx={tx}
+                  onDelete={handleDelete} onEdit={setEditingTx} />
               ))}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Bottom summary bar */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-black/8"
-        style={{
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 64px)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
+      {/* Bottom summary */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-black/8"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 64px)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center justify-center gap-6 px-4 py-2">
           <span className="text-sm">
             <span className="text-muted">Расходы: </span>
@@ -297,6 +473,11 @@ export default function Transactions() {
           </span>
         </div>
       </div>
+
+      {/* Edit modal */}
+      {editingTx && (
+        <EditTransactionSheet tx={editingTx} onClose={() => setEditingTx(null)} />
+      )}
     </div>
   )
 }
