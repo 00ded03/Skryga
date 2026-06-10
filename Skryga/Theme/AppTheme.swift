@@ -1,3 +1,6 @@
+// AppTheme.swift
+// Skryga — Complete design system: colors, typography, layout, formatters, modifiers
+
 import SwiftUI
 
 // MARK: - App Theme Namespace
@@ -53,7 +56,38 @@ enum AppTheme {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+
+        static let savingsGradient = LinearGradient(
+            colors: [Color(hex: "#FF9500"), Color(hex: "#FF6B00")],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
+
+    // MARK: - Currency Helper
+
+    /// Formats a Double as an ILS currency string.
+    /// Convenience wrapper used by shared components.
+    static func formatCurrency(_ value: Double) -> String {
+        Formatters.currency.string(from: NSNumber(value: value)) ?? "₪ \(value)"
+    }
+
+    // MARK: - Convenience Color Aliases
+    // Flat aliases so call-sites can write `AppTheme.primaryBlue`
+    // in addition to the full `AppTheme.Colors.primaryBlue` form.
+
+    static var primaryBlue:     Color { Colors.primaryBlue }
+    static var secondaryPurple: Color { Colors.secondaryPurple }
+    static var backgroundLight: Color { Colors.backgroundLight }
+    static var cardBackground:  Color { Colors.cardBackground }
+    static var successGreen:    Color { Colors.successGreen }
+    static var errorRed:        Color { Colors.errorRed }
+    static var warningOrange:   Color { Colors.warningOrange }
+    static var textPrimary:     Color { Colors.textPrimary }
+    static var textSecondary:   Color { Colors.textSecondary }
+    static var incomeGreen:     Color          { Colors.incomeGreen }
+    static var expenseRed:      Color          { Colors.expenseRed }
+    static var primaryGradient: LinearGradient { Colors.primaryGradient }
 
     // MARK: - Typography
 
@@ -288,6 +322,29 @@ struct SecondaryButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+// MARK: - AppTheme Convenience Shorthands
+// These allow writing `AppTheme.primaryBlue` instead of `AppTheme.Colors.primaryBlue`
+
+extension AppTheme {
+    static var primaryBlue:     Color { Colors.primaryBlue }
+    static var secondaryPurple: Color { Colors.secondaryPurple }
+    static var backgroundLight: Color { Colors.backgroundLight }
+    static var cardBackground:  Color { Colors.cardBackground }
+    static var textPrimary:     Color { Colors.textPrimary }
+    static var textSecondary:   Color { Colors.textSecondary }
+    static var incomeGreen:     Color { Colors.incomeGreen }
+    static var expenseRed:      Color { Colors.expenseRed }
+    static var successGreen:    Color { Colors.successGreen }
+    static var errorRed:        Color { Colors.errorRed }
+    static var warningOrange:   Color { Colors.warningOrange }
+    static var primaryGradient: LinearGradient { Colors.primaryGradient }
+
+    /// Formats a Double as an ILS currency string using the standard formatter.
+    static func formatCurrency(_ value: Double) -> String {
+        Formatters.currency.string(from: NSNumber(value: value)) ?? "₪\(value)"
     }
 }
 

@@ -43,36 +43,27 @@ struct DashboardView: View {
         Array(allTransactions.prefix(5))
     }
 
-    private var husbandName: String {
-        familyMembers.first(where: { $0.role == "husband" })?.name ?? "Муж"
-    }
-    private var wifeName: String {
-        familyMembers.first(where: { $0.role == "wife" })?.name ?? "Жена"
-    }
-    private var husbandEmoji: String {
-        familyMembers.first(where: { $0.role == "husband" })?.emoji ?? "👨"
-    }
-    private var wifeEmoji: String {
-        familyMembers.first(where: { $0.role == "wife" })?.emoji ?? "👩"
-    }
+    private var husbandName: String  { familyMembers.first(where: { $0.role == "husband" })?.name  ?? "Муж"  }
+    private var wifeName: String     { familyMembers.first(where: { $0.role == "wife"    })?.name  ?? "Жена" }
+    private var husbandEmoji: String { familyMembers.first(where: { $0.role == "husband" })?.emoji ?? "👨"   }
+    private var wifeEmoji: String    { familyMembers.first(where: { $0.role == "wife"    })?.emoji ?? "👩"   }
 
-    // Daily balances for chart
+    // Daily net for each day so far this month
     private var dailyData: [(day: Int, balance: Double)] {
         let cal = Calendar.current
-        guard let range = cal.range(of: .day, in: .month, for: now) else { return [] }
         let today = cal.component(.day, from: now)
         return (1...today).map { day in
             var comps = cal.dateComponents([.year, .month], from: now)
             comps.day = day
             guard let dayDate = cal.date(from: comps) else { return (day, 0) }
             let dayTxns = allTransactions.filter { cal.isDate($0.date, inSameDayAs: dayDate) }
-            let inc = dayTxns.filter { $0.type == "income" }.reduce(0) { $0 + $1.amount }
+            let inc = dayTxns.filter { $0.type == "income"  }.reduce(0) { $0 + $1.amount }
             let exp = dayTxns.filter { $0.type == "expense" }.reduce(0) { $0 + $1.amount }
             return (day, inc - exp)
         }
     }
 
-    // Running cumulative balance
+    // Running cumulative balance across the month
     private var cumulativeData: [(day: Int, balance: Double)] {
         var running = 0.0
         return dailyData.map { entry in
@@ -81,21 +72,20 @@ struct DashboardView: View {
         }
     }
 
-    // Top expense category this month
+    // Top expense category this month (display name)
     private var topExpenseCategory: String {
         let expenses = monthTransactions.filter { $0.type == "expense" }
         guard !expenses.isEmpty else { return "—" }
         let grouped = Dictionary(grouping: expenses, by: { $0.categoryKey })
-        let top = grouped.max(by: { a, b in
+        let top = grouped.max { a, b in
             a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount }
-        })
+        }
         if let key = top?.key {
             return CategoryData.category(forKey: key)?.name ?? key
         }
         return "—"
     }
 
-    // Month-over-month savings comparison
     private var lastMonthExpenses: Double {
         let cal = Calendar.current
         guard let lastMonth = cal.date(byAdding: .month, value: -1, to: now) else { return 0 }
@@ -119,14 +109,14 @@ struct DashboardView: View {
                         monthlyChartSection
                         recentTransactionsSection
                         quickStatsSection
-                        Spacer(minLength: 80)
+                        Spacer(minLength: 100)
                     }
                     .padding(.bottom, 16)
                 }
                 .background(AppTheme.backgroundLight.ignoresSafeArea())
                 .navigationBarHidden(true)
 
-                // FAB
+                // Floating action button
                 Button {
                     showAddTransaction = true
                 } label: {
@@ -134,7 +124,7 @@ struct DashboardView: View {
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 56, height: 56)
-                        .background(AppTheme.primaryBlue)
+                        .background(AppTheme.primaryGradient)
                         .clipShape(Circle())
                         .shadow(color: AppTheme.primaryBlue.opacity(0.4), radius: 10, x: 0, y: 4)
                 }
@@ -160,47 +150,41 @@ struct DashboardView: View {
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea(edges: .top)
-            .frame(height: 180)
 
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(greetingText())
-                            .font(.title2)
-                            .fontWeight(.bold)
+                            .font(AppTheme.Typography.title2)
                             .foregroundStyle(.white)
                         Text(formattedDate())
-                            .font(.subheadline)
+                            .font(AppTheme.Typography.subheadline)
                             .foregroundStyle(.white.opacity(0.8))
                     }
                     Spacer()
-                    // Avatar circles
-                    HStack(spacing: 8) {
-                        avatarCircle(emoji: husbandEmoji, color: AppTheme.primaryBlue, name: husbandName)
-                        avatarCircle(emoji: wifeEmoji, color: Color(hex: "#7B5CF0"), name: wifeName)
+                    HStack(spacing: 10) {
+                        avatarCircle(emoji: husbandEmoji, name: husbandName)
+                        avatarCircle(emoji: wifeEmoji, name: wifeName)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-                .padding(.bottom, 24)
+                .padding(.bottom, 28)
             }
         }
-        .frame(height: 160)
+        .frame(minHeight: 160)
     }
 
-    private func avatarCircle(emoji: String, color: Color, name: String) -> some View {
+    private func avatarCircle(emoji: String, name: String) -> some View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
                     .fill(.white.opacity(0.2))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 46, height: 46)
+                    .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 2))
                 Text(emoji)
                     .font(.title2)
             }
-            .overlay(
-                Circle()
-                    .stroke(.white.opacity(0.5), lineWidth: 2)
-            )
             Text(name)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.85))
@@ -235,10 +219,17 @@ struct DashboardView: View {
                 )
             }
             .padding(.horizontal, 20)
+            .padding(.vertical, 4)
         }
     }
 
-    private func summaryCard(title: String, amount: Double, isIncome: Bool, accentColor: Color, icon: String) -> some View {
+    private func summaryCard(
+        title: String,
+        amount: Double,
+        isIncome: Bool,
+        accentColor: Color,
+        icon: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: icon)
@@ -260,7 +251,7 @@ struct DashboardView: View {
                 .minimumScaleFactor(0.7)
         }
         .padding(16)
-        .frame(width: 160)
+        .frame(width: 162)
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
@@ -289,17 +280,23 @@ struct DashboardView: View {
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [AppTheme.primaryBlue.opacity(0.3), AppTheme.primaryBlue.opacity(0.0)],
+                                colors: [
+                                    AppTheme.primaryBlue.opacity(0.3),
+                                    AppTheme.primaryBlue.opacity(0.0)
+                                ],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                         )
+                        .interpolationMethod(.catmullRom)
+
                         LineMark(
                             x: .value("День", entry.day),
                             y: .value("Баланс", entry.balance)
                         )
                         .foregroundStyle(AppTheme.primaryBlue)
                         .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .interpolationMethod(.catmullRom)
                     }
                 }
                 .chartXAxis {
@@ -319,7 +316,8 @@ struct DashboardView: View {
                     AxisMarks { value in
                         AxisValueLabel {
                             if let v = value.as(Double.self) {
-                                Text("₪\(Int(v / 1000))к")
+                                let k = abs(v) >= 1000
+                                Text(k ? "₪\(Int(v / 1000))к" : "₪\(Int(v))")
                                     .font(.caption2)
                                     .foregroundStyle(AppTheme.textSecondary)
                             }
@@ -367,9 +365,9 @@ struct DashboardView: View {
 
     private func transactionRow(_ txn: Transaction) -> some View {
         let isIncome = txn.type == "income"
-        let cat = CategoryData.category(forKey: txn.categoryKey)
-        let icon = cat?.iconName ?? (isIncome ? "arrow.down.circle" : "creditcard")
-        let color = isIncome ? AppTheme.incomeGreen : AppTheme.expenseRed
+        let cat      = CategoryData.category(forKey: txn.categoryKey)
+        let icon     = cat?.iconName ?? (isIncome ? "arrow.down.circle" : "creditcard")
+        let color    = isIncome ? AppTheme.incomeGreen : AppTheme.expenseRed
 
         return HStack(spacing: 12) {
             CategoryIcon(systemName: icon, color: color, size: 38)
@@ -380,18 +378,17 @@ struct DashboardView: View {
                     .foregroundStyle(AppTheme.textPrimary)
                     .lineLimit(1)
                 HStack(spacing: 4) {
-                    if let subName = CategoryData.subcategoryName(categoryKey: txn.categoryKey, subcategoryKey: txn.subcategoryKey) {
+                    if let subName = CategoryData.subcategoryName(
+                        categoryKey: txn.categoryKey,
+                        subcategoryKey: txn.subcategoryKey
+                    ) {
                         Text(subName)
                             .font(.caption)
                             .foregroundStyle(AppTheme.textSecondary)
                     }
                     if txn.isFamily {
-                        Text("·")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.textSecondary)
-                        Text("Семья")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.primaryBlue)
+                        Text("·").font(.caption).foregroundStyle(AppTheme.textSecondary)
+                        Text("Семья").font(.caption).foregroundStyle(AppTheme.primaryBlue)
                     }
                 }
             }
@@ -433,10 +430,10 @@ struct DashboardView: View {
         let hour = Calendar.current.component(.hour, from: now)
         let base: String
         switch hour {
-        case 5..<12: base = "Доброе утро"
+        case 5..<12:  base = "Доброе утро"
         case 12..<17: base = "Добрый день"
         case 17..<22: base = "Добрый вечер"
-        default: base = "Доброй ночи"
+        default:      base = "Доброй ночи"
         }
         return "\(base), \(husbandName)!"
     }
@@ -453,34 +450,6 @@ struct DashboardView: View {
         fmt.locale = Locale(identifier: "ru_RU")
         fmt.dateFormat = "MMM"
         return fmt.string(from: now).capitalized
-    }
-}
-
-// MARK: - Color hex extension
-
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3:
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8:
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
     }
 }
 

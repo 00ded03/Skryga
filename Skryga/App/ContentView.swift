@@ -1,3 +1,6 @@
+// ContentView.swift
+// Skryga — Root tab view with custom tab bar
+
 import SwiftUI
 
 // MARK: - Tab Definition
@@ -39,6 +42,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
+            // Tab pages — rendered without the system tab bar chrome
             TabView(selection: $selectedTab) {
                 HomeView()
                     .tag(AppTab.home)
@@ -57,7 +61,11 @@ struct ContentView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            CustomTabBar(selectedTab: $selectedTab, showAddTransaction: $showAddTransaction)
+            // Custom tab bar overlaid at the bottom
+            CustomTabBar(
+                selectedTab: $selectedTab,
+                showAddTransaction: $showAddTransaction
+            )
         }
         .ignoresSafeArea(.keyboard)
         .sheet(isPresented: $showAddTransaction) {
@@ -77,7 +85,7 @@ private struct CustomTabBar: View {
         HStack(spacing: 0) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 if tab == .analytics {
-                    // Center FAB button
+                    // Centre floating-action button replaces the analytics tab item
                     Spacer()
                     AddButton(action: { showAddTransaction = true })
                     Spacer()
@@ -96,7 +104,12 @@ private struct CustomTabBar: View {
         .background(
             Rectangle()
                 .fill(.white)
-                .shadow(color: .black.opacity(0.08), radius: 20, x: 0, y: -4)
+                .shadow(
+                    color: .black.opacity(0.08),
+                    radius: 20,
+                    x: 0,
+                    y: -4
+                )
                 .ignoresSafeArea()
         )
     }
@@ -126,13 +139,21 @@ private struct TabBarItem: View {
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: isSelected ? .semibold : .regular))
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isSelected ? AppTheme.Colors.primaryBlue : AppTheme.Colors.textSecondary)
+                    .foregroundStyle(
+                        isSelected
+                            ? AppTheme.Colors.primaryBlue
+                            : AppTheme.Colors.textSecondary
+                    )
                     .scaleEffect(isSelected ? 1.1 : 1.0)
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
 
                 Text(tab.title)
                     .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? AppTheme.Colors.primaryBlue : AppTheme.Colors.textSecondary)
+                    .foregroundStyle(
+                        isSelected
+                            ? AppTheme.Colors.primaryBlue
+                            : AppTheme.Colors.textSecondary
+                    )
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -143,12 +164,11 @@ private struct TabBarItem: View {
     }
 }
 
-// MARK: - Add Button (FAB)
+// MARK: - Add Button (Floating Action Button)
 
 private struct AddButton: View {
 
     let action: () -> Void
-
     @State private var isPressed = false
 
     var body: some View {
@@ -157,7 +177,12 @@ private struct AddButton: View {
                 Circle()
                     .fill(AppTheme.Colors.primaryGradient)
                     .frame(width: 56, height: 56)
-                    .shadow(color: AppTheme.Colors.primaryBlue.opacity(0.4), radius: 12, x: 0, y: 4)
+                    .shadow(
+                        color: AppTheme.Colors.primaryBlue.opacity(0.4),
+                        radius: 12,
+                        x: 0,
+                        y: 4
+                    )
 
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .semibold))
@@ -179,106 +204,15 @@ private struct AddButton: View {
     }
 }
 
-// MARK: - Placeholder Views
+// MARK: - HomeView alias
+// DashboardView (Views/Dashboard/DashboardView.swift) is the full implementation.
+// TransactionsView  → Views/Transactions/TransactionsView.swift
+// AnalyticsView     → Views/Analytics/AnalyticsView.swift
+// SavingsView       → Views/Savings/SavingsView.swift
+// SettingsView      → Views/Settings/SettingsView.swift
+// AddTransactionView → Views/Transactions/AddTransactionView.swift
 
-// These are stub views that will be replaced by full feature implementations.
-
-struct HomeView: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 16)
-                    Text("Главная")
-                        .font(AppTheme.Typography.largeTitle)
-                }
-            }
-            .background(AppTheme.Colors.backgroundLight)
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct TransactionsView: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 16)
-                    Text("Транзакции")
-                        .font(AppTheme.Typography.largeTitle)
-                }
-            }
-            .background(AppTheme.Colors.backgroundLight)
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct AnalyticsView: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 16)
-                    Text("Аналитика")
-                        .font(AppTheme.Typography.largeTitle)
-                }
-            }
-            .background(AppTheme.Colors.backgroundLight)
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct SavingsView: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 16)
-                    Text("Накопления")
-                        .font(AppTheme.Typography.largeTitle)
-                }
-            }
-            .background(AppTheme.Colors.backgroundLight)
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct SettingsView: View {
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 16)
-                    Text("Настройки")
-                        .font(AppTheme.Typography.largeTitle)
-                }
-            }
-            .background(AppTheme.Colors.backgroundLight)
-            .navigationBarHidden(true)
-        }
-    }
-}
-
-struct AddTransactionView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Text("Добавить транзакцию")
-                .navigationTitle("Новая транзакция")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Отмена") { dismiss() }
-                    }
-                }
-        }
-    }
-}
+typealias HomeView = DashboardView
 
 // MARK: - Preview
 

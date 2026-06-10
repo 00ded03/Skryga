@@ -26,6 +26,7 @@ extension View {
 
 // MARK: - AmountText
 
+/// Displays an amount in ₪ coloured green for income, red for expense.
 struct AmountText: View {
     let amount: Double
     let isIncome: Bool
@@ -42,6 +43,7 @@ struct AmountText: View {
 
 // MARK: - CategoryIcon
 
+/// SF Symbol inside a tinted circle.
 struct CategoryIcon: View {
     let systemName: String
     let color: Color
@@ -61,6 +63,7 @@ struct CategoryIcon: View {
 
 // MARK: - MemberBadge
 
+/// Small coloured circle with a member initial.
 struct MemberBadge: View {
     let initial: String
     let color: Color
@@ -80,6 +83,7 @@ struct MemberBadge: View {
 
 // MARK: - SectionHeader
 
+/// Bold section title with an optional trailing action button.
 struct SectionHeader: View {
     let title: String
     var actionTitle: String? = nil
@@ -105,6 +109,7 @@ struct SectionHeader: View {
 
 // MARK: - EmptyStateView
 
+/// Full-width empty-state placeholder with an illustration, title, message and optional CTA.
 struct EmptyStateView: View {
     let systemName: String
     let title: String
@@ -165,11 +170,12 @@ struct LoadingView: View {
 
 // MARK: - StatCard
 
+/// Compact metric card: title, value, optional trend arrow or subtitle.
 struct StatCard: View {
     let title: String
     let value: String
     var subtitle: String? = nil
-    var trend: Double? = nil      // positive = up, negative = down
+    var trend: Double? = nil       // positive = up, negative = down
     var accentColor: Color = AppTheme.primaryBlue
 
     var body: some View {
@@ -213,6 +219,7 @@ struct StatCard: View {
 
 // MARK: - ProgressRing
 
+/// Circular progress indicator used for savings goals.
 struct ProgressRing: View {
     let progress: Double          // 0.0 … 1.0
     let color: Color
@@ -241,11 +248,12 @@ struct ProgressRing: View {
 
 // MARK: - MonthNavigator
 
+/// ← Month Year → navigation component.
 struct MonthNavigator: View {
     @Binding var selectedMonth: Int   // 1–12
     @Binding var selectedYear: Int
 
-    private static let monthNames = [
+    static let monthNames = [
         "Январь", "Февраль", "Март", "Апрель",
         "Май", "Июнь", "Июль", "Август",
         "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
@@ -289,9 +297,55 @@ struct MonthNavigator: View {
     private func stepMonth(by delta: Int) {
         var m = selectedMonth + delta
         var y = selectedYear
-        if m < 1 { m = 12; y -= 1 }
-        if m > 12 { m = 1; y += 1 }
+        if m < 1  { m = 12; y -= 1 }
+        if m > 12 { m = 1;  y += 1 }
         selectedMonth = m
-        selectedYear = y
+        selectedYear  = y
+    }
+}
+
+// MARK: - InfoRow (utility)
+
+/// A label/value pair row used in settings and detail sheets.
+struct InfoRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.textSecondary)
+            Spacer()
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(AppTheme.textPrimary)
+        }
+    }
+}
+
+// MARK: - Chip / Tag
+
+struct ChipView: View {
+    let title: String
+    var isSelected: Bool = false
+    var color: Color = AppTheme.primaryBlue
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        Button {
+            action?()
+        } label: {
+            Text(title)
+                .font(.caption)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .foregroundStyle(isSelected ? .white : color)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? color : color.opacity(0.1))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
