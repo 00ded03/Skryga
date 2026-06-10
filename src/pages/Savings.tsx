@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Plus, X, TrendingUp, Landmark, Building2 } from 'lucide-react'
 import { db } from '../db/database'
@@ -57,14 +57,24 @@ function FundTypeBadge({ type }: { type: PensionFund['fundType'] }) {
   )
 }
 
-function DepositSheet({
-  goal,
-  onClose,
-}: {
-  goal: SavingsGoal
-  onClose: () => void
-}) {
+function useScrollLock() {
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    return () => {
+      document.body.style.overflow = prev
+      document.body.style.position = ''
+      document.body.style.width = ''
+    }
+  }, [])
+}
+
+function DepositSheet({ goal, onClose }: { goal: SavingsGoal; onClose: () => void }) {
   const [amount, setAmount] = useState('')
+  useScrollLock()
+
   async function handleDeposit() {
     const n = parseFloat(amount)
     if (!n || !goal.id) return
@@ -74,39 +84,38 @@ function DepositSheet({
     })
     onClose()
   }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white rounded-t-ios-xl p-6 shadow-card-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-base font-semibold text-gray-900 mb-1">Пополнить</h3>
-        <p className="text-sm text-muted mb-4">{goal.title}</p>
-        <div className="flex items-center gap-3 mb-4">
-          <span className="text-2xl font-bold text-gray-400">₪</span>
-          <input
-            type="number"
-            placeholder="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="input-field text-2xl font-bold flex-1"
-            autoFocus
-          />
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={onClose}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col" onClick={e => e.stopPropagation()}
+        style={{ maxHeight: '60dvh' }}>
+        {/* Header */}
+        <div className="flex-shrink-0 p-6 pb-2">
+          <div className="w-10 h-1 bg-black/10 rounded-full mx-auto mb-4" />
+          <h3 className="text-base font-semibold text-gray-900">Пополнить</h3>
+          <p className="text-sm text-muted">{goal.title}</p>
         </div>
-        <div className="flex gap-2 mb-4">
-          {[100, 500, 1000, 2000].map((v) => (
-            <button
-              key={v}
-              onClick={() => setAmount(String(v))}
-              className="flex-1 py-2 bg-background rounded-ios text-sm font-medium text-primary active:opacity-70"
-            >
-              +{v}
-            </button>
-          ))}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-3" style={{ overscrollBehavior: 'contain' }}>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-gray-400">₪</span>
+            <input type="number" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}
+              className="input-field text-2xl font-bold flex-1" autoFocus />
+          </div>
+          <div className="flex gap-2">
+            {[100, 500, 1000, 2000].map(v => (
+              <button key={v} onClick={() => setAmount(String(v))}
+                className="flex-1 py-2 bg-background rounded-ios text-sm font-medium text-primary active:opacity-70">
+                +{v}
+              </button>
+            ))}
+          </div>
         </div>
-        <button onClick={handleDeposit} className="btn-primary w-full">
-          Пополнить
-        </button>
+        {/* Footer */}
+        <div className="flex-shrink-0 px-6 pt-2 pb-4 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleDeposit} className="btn-primary w-full">Пополнить</button>
+        </div>
       </div>
     </div>
   )
@@ -134,83 +143,54 @@ function AddGoalModal({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
+  useScrollLock()
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white rounded-t-ios-xl p-6 max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={onClose}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col" style={{ maxHeight: '92dvh' }}
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 pt-4 pb-2">
           <h3 className="text-base font-semibold text-gray-900">Новая цель</h3>
-          <button onClick={onClose} className="active:opacity-70">
-            <X size={22} color="#8E8E93" />
-          </button>
+          <button onClick={onClose} className="active:opacity-70"><X size={22} color="#8E8E93" /></button>
         </div>
-
-        <div className="space-y-3">
-          <input
-            type="text"
-            placeholder="Название цели"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="input-field"
-          />
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-3" style={{ overscrollBehavior: 'contain' }}>
+          <input type="text" placeholder="Название цели" value={title} onChange={e => setTitle(e.target.value)} className="input-field" />
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">₪</span>
-            <input
-              type="number"
-              placeholder="Целевая сумма"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              className="input-field pl-7"
-            />
+            <input type="number" placeholder="Целевая сумма" value={targetAmount} onChange={e => setTargetAmount(e.target.value)} className="input-field pl-7" />
           </div>
-          <input
-            type="date"
-            value={deadline}
-            onChange={(e) => setDeadline(e.target.value)}
-            className="input-field"
-          />
-
+          <input type="date" value={deadline} onChange={e => setDeadline(e.target.value)} className="input-field" />
           <div>
             <p className="text-xs text-muted mb-2">Иконка</p>
             <div className="grid grid-cols-5 gap-2">
-              {GOAL_ICONS.map((ic) => {
-                const iconKey = ic as keyof typeof LucideIcons
-                const Icon = (LucideIcons[iconKey] as React.FC<{ size?: number; color?: string }>) || LucideIcons.Star
+              {GOAL_ICONS.map(ic => {
+                const Icon = (LucideIcons[ic as keyof typeof LucideIcons] as React.FC<{ size?: number; color?: string }>) || LucideIcons.Star
                 return (
-                  <button
-                    key={ic}
-                    onClick={() => setSelectedIcon(ic)}
-                    className={`p-3 rounded-ios flex items-center justify-center transition-colors ${
-                      selectedIcon === ic ? 'bg-primary' : 'bg-background'
-                    }`}
-                  >
+                  <button key={ic} onClick={() => setSelectedIcon(ic)}
+                    className={`p-3 rounded-ios flex items-center justify-center transition-colors ${selectedIcon === ic ? 'bg-primary' : 'bg-background'}`}>
                     <Icon size={20} color={selectedIcon === ic ? '#fff' : '#8E8E93'} />
                   </button>
                 )
               })}
             </div>
           </div>
-
           <div>
             <p className="text-xs text-muted mb-2">Цвет</p>
             <div className="flex gap-2">
-              {GOAL_COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setSelectedColor(c)}
+              {GOAL_COLORS.map(c => (
+                <button key={c} onClick={() => setSelectedColor(c)}
                   className={`w-8 h-8 rounded-full transition-transform ${selectedColor === c ? 'scale-125 ring-2 ring-offset-1 ring-primary' : ''}`}
-                  style={{ backgroundColor: c }}
-                />
+                  style={{ backgroundColor: c }} />
               ))}
             </div>
           </div>
         </div>
-
-        <button onClick={handleSave} className="btn-primary w-full mt-4">
-          Создать цель
-        </button>
+        {/* Footer */}
+        <div className="flex-shrink-0 px-6 pt-2 pb-4 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleSave} className="btn-primary w-full">Создать цель</button>
+        </div>
       </div>
     </div>
   )
@@ -238,62 +218,57 @@ function AddFundModal({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
+  useScrollLock()
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={onClose}>
-      <div
-        className="w-full bg-white rounded-t-ios-xl p-6 max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={onClose}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col" style={{ maxHeight: '92dvh' }}
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 pt-4 pb-2">
           <h3 className="text-base font-semibold text-gray-900">Новый фонд</h3>
-          <button onClick={onClose} className="active:opacity-70">
-            <X size={22} color="#8E8E93" />
-          </button>
+          <button onClick={onClose} className="active:opacity-70"><X size={22} color="#8E8E93" /></button>
         </div>
-        <div className="space-y-3">
-          <input type="text" placeholder="Название фонда" value={name} onChange={(e) => setName(e.target.value)} className="input-field" />
-
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-3" style={{ overscrollBehavior: 'contain' }}>
+          <input type="text" placeholder="Название фонда" value={name} onChange={e => setName(e.target.value)} className="input-field" />
           <div className="flex bg-background rounded-ios p-1 gap-1">
-            {(['pension', 'keren_hishtalmut', 'investment'] as PensionFund['fundType'][]).map((t) => {
+            {(['pension', 'keren_hishtalmut', 'investment'] as PensionFund['fundType'][]).map(t => {
               const labels = { pension: 'Пенсия', keren_hishtalmut: 'К.Хиштальмут', investment: 'Инвестиции' }
               return (
-                <button
-                  key={t}
-                  onClick={() => setFundType(t)}
-                  className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${fundType === t ? 'bg-primary text-white' : 'text-muted'}`}
-                >
+                <button key={t} onClick={() => setFundType(t)}
+                  className={`flex-1 py-2 rounded-[10px] text-xs font-medium transition-colors ${fundType === t ? 'bg-primary text-white' : 'text-muted'}`}>
                   {labels[t]}
                 </button>
               )
             })}
           </div>
-
           <div className="flex bg-background rounded-ios p-1 gap-1">
-            {(['ilya', 'anastasia'] as PensionFund['owner'][]).map((o) => (
-              <button
-                key={o}
-                onClick={() => setOwner(o)}
-                className={`flex-1 py-2 rounded-[10px] text-sm font-medium transition-colors ${owner === o ? 'bg-primary text-white' : 'text-muted'}`}
-              >
-                {o === 'ilya' ? 'Илья' : 'Анастасия'}
+            {(['ilya', 'anastasia'] as PensionFund['owner'][]).map(o => (
+              <button key={o} onClick={() => setOwner(o)}
+                className={`flex-1 py-2 rounded-[10px] text-sm font-medium transition-colors ${owner === o ? 'bg-primary text-white' : 'text-muted'}`}>
+                {o === 'ilya' ? 'Филипп' : 'Анастасия'}
               </button>
             ))}
           </div>
 
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">₪</span>
-            <input type="number" placeholder="Текущий баланс" value={balance} onChange={(e) => setBalance(e.target.value)} className="input-field pl-7" />
+            <input type="number" placeholder="Текущий баланс" value={balance} onChange={e => setBalance(e.target.value)} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">₪</span>
-            <input type="number" placeholder="Взнос в месяц" value={monthly} onChange={(e) => setMonthly(e.target.value)} className="input-field pl-7" />
+            <input type="number" placeholder="Взнос в месяц" value={monthly} onChange={e => setMonthly(e.target.value)} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted text-sm">%</span>
-            <input type="number" placeholder="Взнос работодателя %" value={employer} onChange={(e) => setEmployer(e.target.value)} className="input-field pr-7" />
+            <input type="number" placeholder="Взнос работодателя %" value={employer} onChange={e => setEmployer(e.target.value)} className="input-field pr-7" />
           </div>
         </div>
-        <button onClick={handleSave} className="btn-primary w-full mt-4">Сохранить</button>
+        {/* Footer */}
+        <div className="flex-shrink-0 px-6 pt-2 pb-4 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleSave} className="btn-primary w-full">Сохранить</button>
+        </div>
       </div>
     </div>
   )

@@ -132,7 +132,7 @@ export default function AddTransactionModal() {
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black/50 flex items-end"
+      className="fixed inset-0 z-[60] bg-black/50 flex items-end"
       onClick={e => e.target === e.currentTarget && closeAddTransaction()}
     >
       {/* Hidden file input for camera/gallery */}
