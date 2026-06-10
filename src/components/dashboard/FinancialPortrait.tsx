@@ -131,16 +131,15 @@ function BlockCard({ block, onClick }: { block: Block; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="bg-white rounded-2xl p-4 text-left active:scale-95 transition-transform shadow-card flex flex-col gap-2"
-      style={{ minHeight: 120 }}
+      className="bg-white rounded-2xl p-3 text-left active:scale-95 transition-transform shadow-card flex flex-col gap-1.5"
     >
-      <div className="flex items-start justify-between">
-        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+      <div className="flex items-center justify-between">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: block.iconBg }}>
-          <block.Icon size={18} color={block.iconColor} />
+          <block.Icon size={16} color={block.iconColor} />
         </div>
         {block.count > 0 && (
-          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
             style={{ backgroundColor: block.iconBg, color: block.iconColor }}>
             {block.count}
           </span>
@@ -150,12 +149,12 @@ function BlockCard({ block, onClick }: { block: Block; onClick: () => void }) {
       <div>
         <p className="text-[11px] text-muted font-medium leading-tight">{block.label}</p>
         {block.sublabel && (
-          <p className="text-[10px] text-muted/70 leading-tight">{block.sublabel}</p>
+          <p className="text-[10px] text-muted/60 leading-tight">{block.sublabel}</p>
         )}
       </div>
 
-      <div className="mt-auto">
-        <p className="text-base font-bold text-gray-900">{formatCurrency(block.total)}</p>
+      <div className="mt-1">
+        <p className="text-sm font-bold text-gray-900">{formatCurrency(block.total)}</p>
         {block.count > 0 && (
           <div className="flex items-center gap-0.5 mt-0.5">
             <p className="text-[10px] text-muted">{pluralAccounts(block.count)}</p>
@@ -382,7 +381,7 @@ export default function FinancialPortrait({ savingsGoals, pensionFunds, monthlyT
           <div className="px-4 pt-4 pb-3 border-b border-black/5">
             <p className="text-xs text-muted font-medium uppercase tracking-wide">Финансовый портрет</p>
           </div>
-          <div className="p-3 grid grid-cols-2 gap-3">
+          <div className="p-2 grid grid-cols-2 gap-2">
             {blocks.map(block => (
               <BlockCard key={block.id} block={block} onClick={() => setActiveBlock(block)} />
             ))}
