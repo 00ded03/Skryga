@@ -4,6 +4,7 @@ import { Edit2, X, Download, Upload, Trash2, Bell, ChevronRight } from 'lucide-r
 import { db } from '../db/database'
 import { getCategoryName } from '../data/categories'
 import { formatCurrency } from '../lib/currency'
+import { useScrollLock } from '../hooks/useScrollLock'
 import type { FamilySettings, BudgetLimit } from '../types'
 
 function EditProfileModal({
@@ -13,6 +14,7 @@ function EditProfileModal({
   settings: FamilySettings
   onClose: () => void
 }) {
+  useScrollLock()
   const [m1Name, setM1Name] = useState(settings.member1Name)
   const [m1Emoji, setM1Emoji] = useState(settings.member1Emoji)
   const [m2Name, setM2Name] = useState(settings.member2Name)
@@ -29,58 +31,43 @@ function EditProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={onClose}>
       <div
-        className="w-full bg-white rounded-t-ios-xl p-6 max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
+        className="w-full bg-white rounded-t-ios-xl flex flex-col"
+        style={{ maxHeight: '85dvh' }}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-3 border-b border-black/5">
           <h3 className="text-base font-semibold text-gray-900">Редактировать профиль</h3>
           <button onClick={onClose} className="active:opacity-70">
             <X size={22} color="#8E8E93" />
           </button>
         </div>
-        <div className="space-y-3">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" style={{ overscrollBehavior: 'contain' }}>
           <p className="text-xs text-muted font-medium uppercase tracking-wide">Участник 1</p>
           <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="Эмодзи"
-              value={m1Emoji}
-              onChange={(e) => setM1Emoji(e.target.value)}
-              className="input-field w-20 text-center text-2xl"
-              maxLength={2}
-            />
-            <input
-              type="text"
-              placeholder="Имя"
-              value={m1Name}
-              onChange={(e) => setM1Name(e.target.value)}
-              className="input-field flex-1"
-            />
+            <input type="text" placeholder="Эмодзи" value={m1Emoji}
+              onChange={e => setM1Emoji(e.target.value)}
+              className="input-field w-20 text-center text-2xl" maxLength={2} />
+            <input type="text" placeholder="Имя" value={m1Name}
+              onChange={e => setM1Name(e.target.value)} className="input-field flex-1" />
           </div>
           <p className="text-xs text-muted font-medium uppercase tracking-wide">Участник 2</p>
           <div className="flex gap-3">
-            <input
-              type="text"
-              placeholder="Эмодзи"
-              value={m2Emoji}
-              onChange={(e) => setM2Emoji(e.target.value)}
-              className="input-field w-20 text-center text-2xl"
-              maxLength={2}
-            />
-            <input
-              type="text"
-              placeholder="Имя"
-              value={m2Name}
-              onChange={(e) => setM2Name(e.target.value)}
-              className="input-field flex-1"
-            />
+            <input type="text" placeholder="Эмодзи" value={m2Emoji}
+              onChange={e => setM2Emoji(e.target.value)}
+              className="input-field w-20 text-center text-2xl" maxLength={2} />
+            <input type="text" placeholder="Имя" value={m2Name}
+              onChange={e => setM2Name(e.target.value)} className="input-field flex-1" />
           </div>
         </div>
-        <button onClick={handleSave} className="btn-primary w-full mt-4">
-          Сохранить
-        </button>
+        {/* Fixed footer */}
+        <div className="flex-shrink-0 px-6 pt-2 pb-4 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleSave} className="btn-primary w-full">Сохранить</button>
+        </div>
       </div>
     </div>
   )
@@ -96,11 +83,15 @@ function BudgetLimitRow({ limit, onEdit }: { limit: BudgetLimit; onEdit: (l: Bud
       <button onClick={() => onEdit(limit)} className="p-2 active:opacity-70">
         <Edit2 size={16} color="#2D6CDF" />
       </button>
+      <button onClick={() => limit.id && db.budgetLimits.delete(limit.id)} className="p-2 active:opacity-70">
+        <Trash2 size={16} color="#FF453A" />
+      </button>
     </div>
   )
 }
 
 function EditLimitModal({ limit, onClose }: { limit: BudgetLimit; onClose: () => void }) {
+  useScrollLock()
   const [amount, setAmount] = useState(String(limit.monthlyLimit))
   const [alertPct, setAlertPct] = useState(String(limit.alertPercent))
 
@@ -113,49 +104,42 @@ function EditLimitModal({ limit, onClose }: { limit: BudgetLimit; onClose: () =>
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end" onClick={onClose}>
-      <div className="w-full bg-white rounded-t-ios-xl p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-end" onClick={onClose}>
+      <div className="w-full bg-white rounded-t-ios-xl flex flex-col"
+        style={{ maxHeight: '60dvh' }}
+        onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-3 border-b border-black/5">
           <h3 className="text-base font-semibold text-gray-900">
             Лимит: {getCategoryName(limit.categoryKey)}
           </h3>
           <button onClick={onClose} className="active:opacity-70"><X size={22} color="#8E8E93" /></button>
         </div>
-        <div className="space-y-3">
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3" style={{ overscrollBehavior: 'contain' }}>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">₪</span>
-            <input
-              type="number"
-              placeholder="Лимит в месяц"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="input-field pl-7"
-            />
+            <input type="number" placeholder="Лимит в месяц" value={amount}
+              onChange={e => setAmount(e.target.value)} className="input-field pl-7" />
           </div>
           <div className="relative">
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted">%</span>
-            <input
-              type="number"
-              placeholder="Уведомление при %"
-              value={alertPct}
-              onChange={(e) => setAlertPct(e.target.value)}
-              className="input-field pr-7"
-            />
+            <input type="number" placeholder="Уведомление при %" value={alertPct}
+              onChange={e => setAlertPct(e.target.value)} className="input-field pr-7" />
           </div>
         </div>
-        <button onClick={handleSave} className="btn-primary w-full mt-4">Сохранить</button>
+        {/* Footer */}
+        <div className="flex-shrink-0 px-6 pt-2 pb-4 bg-white border-t border-black/5"
+          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,8px),16px)' }}>
+          <button onClick={handleSave} className="btn-primary w-full">Сохранить</button>
+        </div>
       </div>
     </div>
   )
 }
 
 function SettingsRow({
-  icon,
-  label,
-  value,
-  onClick,
-  danger,
-  rightEl,
+  icon, label, value, onClick, danger, rightEl,
 }: {
   icon: React.ReactNode
   label: string
@@ -180,19 +164,19 @@ function SettingsRow({
   )
 }
 
-function ConfirmDeleteDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+function ConfirmDeleteDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+    <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-6">
       <div className="bg-white rounded-ios-lg p-6 w-full max-w-sm shadow-card-lg">
-        <h3 className="text-base font-semibold text-gray-900 mb-2">Очистить все данные?</h3>
-        <p className="text-sm text-muted mb-5">
-          Это удалит все транзакции, цели накоплений и настройки. Действие необратимо.
-        </p>
+        <h3 className="text-base font-semibold text-gray-900 mb-2">Подтвердите действие</h3>
+        <p className="text-sm text-muted mb-5">{message}</p>
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-background rounded-ios text-sm font-medium text-gray-900 active:opacity-70">
+          <button onClick={onCancel}
+            className="flex-1 py-3 bg-background rounded-ios text-sm font-medium text-gray-900 active:opacity-70">
             Отмена
           </button>
-          <button onClick={onConfirm} className="flex-1 py-3 bg-expense rounded-ios text-white text-sm font-semibold active:opacity-70">
+          <button onClick={onConfirm}
+            className="flex-1 py-3 bg-expense rounded-ios text-white text-sm font-semibold active:opacity-70">
             Удалить
           </button>
         </div>
@@ -202,7 +186,7 @@ function ConfirmDeleteDialog({ onConfirm, onCancel }: { onConfirm: () => void; o
 }
 
 export default function Settings() {
-  const settings = useLiveQuery(() => db.settings.toArray().then((r) => r[0]), [])
+  const settings = useLiveQuery(() => db.settings.toArray().then(r => r[0]), [])
   const limits = useLiveQuery(() => db.budgetLimits.toArray(), [])
 
   const [showEditProfile, setShowEditProfile] = useState(false)
@@ -217,9 +201,9 @@ export default function Settings() {
   }
 
   function handleExportCSV() {
-    db.transactions.toArray().then((txs) => {
+    db.transactions.toArray().then(txs => {
       const header = 'Дата,Тип,Категория,Подкатегория,Название,Сумма,Владелец,Заметки'
-      const rows = txs.map((t) => {
+      const rows = txs.map(t => {
         const date = new Date(t.date).toLocaleDateString('ru-IL')
         return [
           date,
@@ -246,7 +230,6 @@ export default function Settings() {
   function handleImportCSV(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    // Placeholder: just alert for now
     alert(`Файл "${file.name}" получен. Импорт будет реализован в следующей версии.`)
     e.target.value = ''
   }
@@ -278,7 +261,8 @@ export default function Settings() {
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-xl">
                     {settings.member1Emoji}
                   </div>
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl" style={{ backgroundColor: '#7B5CF0' + '20' }}>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
+                    style={{ backgroundColor: '#7B5CF020' }}>
                     {settings.member2Emoji}
                   </div>
                 </div>
@@ -313,9 +297,7 @@ export default function Settings() {
             {(!limits || limits.length === 0) ? (
               <p className="text-center text-muted text-sm py-6">Лимиты не установлены</p>
             ) : (
-              limits.map((l) => (
-                <BudgetLimitRow key={l.id} limit={l} onEdit={setEditLimit} />
-              ))
+              limits.map(l => <BudgetLimitRow key={l.id} limit={l} onEdit={setEditLimit} />)
             )}
           </div>
         </div>
@@ -331,9 +313,7 @@ export default function Settings() {
                 onClick={toggleNotif}
                 className={`w-12 h-7 rounded-full relative transition-colors ${notifEnabled ? 'bg-income' : 'bg-gray-300'}`}
               >
-                <span
-                  className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${notifEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}
-                />
+                <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${notifEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>
@@ -384,15 +364,12 @@ export default function Settings() {
               <span className="text-sm text-muted">v1.0.0</span>
             </div>
             <div className="px-4 py-3 border-t border-black/5">
-              <p className="text-xs text-muted text-center">
-                Семейный финансовый планировщик для Израиля 🇮🇱
-              </p>
+              <p className="text-xs text-muted text-center">Семейный финансовый планировщик для Израиля 🇮🇱</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modals */}
       {showEditProfile && settings && (
         <EditProfileModal settings={settings} onClose={() => setShowEditProfile(false)} />
       )}
@@ -401,6 +378,7 @@ export default function Settings() {
       )}
       {showDeleteConfirm && (
         <ConfirmDeleteDialog
+          message="Это удалит все транзакции, цели накоплений и настройки. Действие необратимо."
           onConfirm={handleClearData}
           onCancel={() => setShowDeleteConfirm(false)}
         />
