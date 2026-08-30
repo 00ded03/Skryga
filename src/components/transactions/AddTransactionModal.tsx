@@ -5,8 +5,11 @@ import { expenseCategories, incomeCategories } from '../../data/categories'
 import { useStore } from '../../store/useStore'
 import type { AppCategory, BudgetOwner } from '../../types'
 import * as LucideIcons from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 
 const QUICK_AMOUNTS = [50, 100, 200, 500]
+const MAX_SCAN_FILE_BYTES = 8 * 1024 * 1024
+const RECEIPT_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 
 const OWNER_OPTIONS: { value: BudgetOwner; label: string; color: string }[] = [
   { value: 'family', label: 'Семейные', color: '#2D6CDF' },
@@ -28,6 +31,7 @@ export default function AddTransactionModal() {
   const [saving, setSaving] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
+  const [wasScanned, setWasScanned] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pdfInputRef = useRef<HTMLInputElement>(null)
 
@@ -69,6 +73,18 @@ export default function AddTransactionModal() {
   }
 
   async function scanFile(file: File, documentType?: 'receipt' | 'salary_slip') {
+    const isPdf = documentType === 'salary_slip'
+    if (file.size > MAX_SCAN_FILE_BYTES) {
+      setScanMsg('Файл больше 8 МБ')
+      setTimeout(() => setScanMsg(''), 2500)
+      return
+    }
+    if ((isPdf && file.type !== 'application/pdf') || (!isPdf && !RECEIPT_MIME_TYPES.has(file.type))) {
+      setScanMsg(isPdf ? 'Нужен PDF-файл' : 'Нужен JPG, PNG, WebP или HEIC')
+      setTimeout(() => setScanMsg(''), 2500)
+      return
+    }
+
     setScanning(true)
     setScanMsg(documentType === 'salary_slip' ? 'Читаю тлуш…' : 'Читаю чек…')
     try {
@@ -78,20 +94,31 @@ export default function AddTransactionModal() {
         reader.readAsDataURL(file)
       })
       setScanMsg('Распознаю…')
+      const { data: { session } } = await supabase!.auth.getSession()
+      if (!session) throw new Error('Authentication required')
       const res = await fetch('/api/scan-receipt', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ imageBase64: base64, mimeType: file.type, documentType }),
       })
-      const result = await res.json()
+      const result = await res.json().catch(() => null) as Record<string, unknown> | null
+      if (!res.ok || !result) {
+        throw new Error(typeof result?.error === 'string' ? result.error : 'Scan request failed')
+      }
       if (result.amount) setAmountStr(String(result.amount))
-      if (result.title || result.merchantName) setTitle(result.title || result.merchantName)
-      if (result.date) setDate(result.date)
-      if (result.suggestedCategoryKey) {
+      if (typeof result.title === 'string' || typeof result.merchantName === 'string') {
+        setTitle(String(result.title || result.merchantName))
+      }
+      if (typeof result.date === 'string') setDate(result.date)
+      if (typeof result.suggestedCategoryKey === 'string') {
         const all = [...expenseCategories, ...incomeCategories]
         const cat = all.find(c => c.key === result.suggestedCategoryKey)
         if (cat) { setSelectedCategory(cat); setTxType(cat.type) }
       }
+      setWasScanned(true)
       setScanMsg('Готово!')
       setTimeout(() => setScanMsg(''), 1500)
     } catch {
@@ -130,7 +157,7 @@ export default function AddTransactionModal() {
         title: title || selectedCategory.nameRu,
         notes: notes || undefined,
         owner,
-        isFromScan: false,
+        isFromScan: wasScanned,
         createdAt: new Date(),
       })
       closeAddTransaction()

@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
 
 interface ScanRequestBody {
   imageBase64: string
@@ -32,6 +33,26 @@ const VALID_CATEGORIES = [
   'salary', 'other_income',
 ]
 
+const MAX_BASE64_LENGTH = 11_200_000 // approximately 8 MiB before base64 encoding
+const VALID_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf',
+])
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_REQUESTS = 10
+const requestLog = new Map<string, number[]>()
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now()
+  const recent = (requestLog.get(key) ?? []).filter(time => now - time < RATE_LIMIT_WINDOW_MS)
+  if (recent.length >= RATE_LIMIT_REQUESTS) {
+    requestLog.set(key, recent)
+    return true
+  }
+  recent.push(now)
+  requestLog.set(key, recent)
+  return false
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -42,10 +63,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'OpenAI API key not configured' })
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY
+  if (!supabaseUrl || !supabasePublishableKey) {
+    return res.status(500).json({ error: 'Authentication is not configured' })
+  }
+  const authorization = req.headers.authorization
+  const accessToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : ''
+  if (!accessToken) return res.status(401).json({ error: 'Authentication required' })
+
+  const authClient = createClient(supabaseUrl, supabasePublishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  })
+  const { data: { user }, error: authError } = await authClient.auth.getUser(accessToken)
+  if (authError || !user) return res.status(401).json({ error: 'Invalid or expired session' })
+
+  const clientKey = user.id
+  if (isRateLimited(clientKey)) {
+    res.setHeader('Retry-After', '60')
+    return res.status(429).json({ error: 'Слишком много запросов. Повторите через минуту.' })
+  }
+
   const { imageBase64, mimeType, documentType } = req.body as ScanRequestBody
 
   if (!imageBase64 || !mimeType) {
     return res.status(400).json({ error: 'imageBase64 and mimeType are required' })
+  }
+  if (!VALID_MIME_TYPES.has(mimeType)) {
+    return res.status(415).json({ error: 'Unsupported file type' })
+  }
+  if ((documentType === 'salary_slip' && mimeType !== 'application/pdf')
+    || (documentType !== 'salary_slip' && mimeType === 'application/pdf')) {
+    return res.status(400).json({ error: 'File type does not match document type' })
+  }
+  if (imageBase64.length > MAX_BASE64_LENGTH) {
+    return res.status(413).json({ error: 'File is too large' })
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64)) {
+    return res.status(400).json({ error: 'Invalid base64 payload' })
   }
 
   const isSalarySlip = documentType === 'salary_slip'
@@ -118,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!openAIRes.ok) {
       const errText = await openAIRes.text()
       console.error('OpenAI error:', errText)
-      return res.status(502).json({ error: 'OpenAI request failed', detail: errText })
+      return res.status(502).json({ error: 'OpenAI request failed' })
     }
 
     const data = (await openAIRes.json()) as OpenAIResponse
@@ -181,7 +236,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('scan-receipt handler error:', err)
     return res.status(500).json({
       error: 'Internal server error',
-      detail: err instanceof Error ? err.message : String(err),
     })
   }
 }

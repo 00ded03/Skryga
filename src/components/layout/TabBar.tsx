@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Home,
@@ -50,23 +51,13 @@ export default function TabBar() {
         <div className="flex items-center justify-around px-2 pt-1">
           {tabs.map((tab, index) => {
             if (index === 2) {
-              // Insert FAB in the middle (between index 1 and 2 visually)
-              return (
-                <>
-                  <TabItem
-                    key={tab.path}
-                    tab={tab}
-                    isActive={currentPath === tab.path}
-                    onPress={() => handleTabPress(tab.path, tab.tab)}
-                  />
-                </>
-              )
+              return <TabItem key={tab.path} tab={tab} isActive={currentPath === tab.path}
+                onPress={() => handleTabPress(tab.path, tab.tab)} />
             }
             if (index === 1) {
               return (
-                <>
+                <Fragment key={tab.path}>
                   <TabItem
-                    key={tab.path}
                     tab={tab}
                     isActive={currentPath === tab.path}
                     onPress={() => handleTabPress(tab.path, tab.tab)}
@@ -81,7 +72,7 @@ export default function TabBar() {
                   >
                     <Plus size={28} color="#fff" strokeWidth={2.5} />
                   </button>
-                </>
+                </Fragment>
               )
             }
             return (

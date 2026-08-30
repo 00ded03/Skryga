@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Area, AreaChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, ArrowRight, AlertTriangle } from 'lucide-react'
 import { db } from '../db/database'
 import { getCategoryByKey, getSubcategoryByKey } from '../data/categories'
 import {
@@ -75,10 +75,18 @@ export default function Dashboard() {
   )
   const savingsGoals = useLiveQuery(() => db.savingsGoals.toArray(), [])
   const pensionFunds = useLiveQuery(() => db.pensionFunds.toArray(), [])
+  const budgetLimits = useLiveQuery(() => db.budgetLimits.toArray(), [])
 
   const totalIncome   = transactions?.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0) ?? 0
   const totalExpenses = transactions?.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0) ?? 0
   const balance = totalIncome - totalExpenses
+  const budgetProgress = React.useMemo(() => (budgetLimits ?? []).map(limit => {
+    const spent = transactions
+      ?.filter(tx => tx.type === 'expense' && tx.categoryKey === limit.categoryKey)
+      .reduce((sum, tx) => sum + tx.amount, 0) ?? 0
+    const percent = limit.monthlyLimit > 0 ? (spent / limit.monthlyLimit) * 100 : 0
+    return { limit, spent, percent, remaining: limit.monthlyLimit - spent, category: getCategoryByKey(limit.categoryKey) }
+  }), [budgetLimits, transactions])
 
   // Monthly spending progress
   const spendingPct = totalIncome > 0 ? Math.min((totalExpenses / totalIncome) * 100, 100) : 0
@@ -205,6 +213,48 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* ── Бюджетные лимиты ── */}
+      {budgetProgress.length > 0 && (
+        <div className="card mx-4 p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-900">Лимиты бюджета</p>
+            <button onClick={() => navigate('/settings')} className="text-xs text-primary font-medium active:opacity-70">
+              Настроить
+            </button>
+          </div>
+          <div className="space-y-4">
+            {budgetProgress.map(({ limit, spent, percent, remaining, category }) => {
+              const isOver = percent > 100
+              const isWarning = percent >= limit.alertPercent
+              const color = isOver ? '#FF453A' : isWarning ? '#FF9500' : category?.color ?? '#2D6CDF'
+              return (
+                <div key={limit.id ?? limit.categoryKey}>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-xs font-medium text-gray-900 truncate">{category?.nameRu ?? limit.categoryKey}</span>
+                      {isWarning && <AlertTriangle size={13} color={color} aria-label="Достигнут порог бюджета" />}
+                    </div>
+                    <span className="text-xs font-semibold flex-shrink-0" style={{ color }}>
+                      {formatCurrency(spent)} / {formatCurrency(limit.monthlyLimit)}
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(percent, 100)}%`, backgroundColor: color }} />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-[10px] text-muted">{Math.round(percent)}%</span>
+                    <span className="text-[10px] font-medium" style={{ color }}>
+                      {remaining >= 0 ? `Осталось ${formatCurrency(remaining)}` : `Превышение ${formatCurrency(Math.abs(remaining))}`}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Chart ── */}
       {chartData.length > 1 && (

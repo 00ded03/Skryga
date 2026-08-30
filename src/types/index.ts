@@ -3,6 +3,7 @@ export type BudgetOwner = 'family' | 'ilya' | 'anastasia'
 
 export interface Transaction {
   id?: number
+  cloudId?: string
   date: Date
   amount: number
   type: TransactionType
@@ -19,6 +20,7 @@ export interface Transaction {
 
 export interface SavingsGoal {
   id?: number
+  cloudId?: string
   title: string
   targetAmount: number
   currentAmount: number
@@ -31,6 +33,7 @@ export interface SavingsGoal {
 
 export interface PensionFund {
   id?: number
+  cloudId?: string
   name: string
   fundType: 'pension' | 'keren_hishtalmut' | 'pitzuim' | 'investment'
   currentBalance: number
@@ -42,6 +45,7 @@ export interface PensionFund {
 
 export interface BudgetLimit {
   id?: number
+  cloudId?: string
   categoryKey: string
   monthlyLimit: number
   alertPercent: number
@@ -49,6 +53,7 @@ export interface BudgetLimit {
 
 export interface FamilySettings {
   id?: number
+  cloudId?: string
   member1Name: string
   member1Emoji: string
   member1Color: string
