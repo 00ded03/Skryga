@@ -26,6 +26,10 @@ export default function AuthPage() {
   const [error, setError] = useState('')
 
   const isUpdatingPassword = passwordRecovery
+  const invitationToken = new URLSearchParams(window.location.search).get('invite')
+  const authRedirectUrl = invitationToken
+    ? `${window.location.origin}/?invite=${encodeURIComponent(invitationToken)}`
+    : window.location.origin
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -53,7 +57,7 @@ export default function AuthPage() {
       }
       if (mode === 'reset') {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: window.location.origin,
+          redirectTo: authRedirectUrl,
         })
         if (resetError) throw resetError
         setMessage('Если аккаунт существует, письмо для смены пароля уже отправлено.')
@@ -63,7 +67,7 @@ export default function AuthPage() {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: authRedirectUrl },
         })
         if (signUpError) throw signUpError
         if (!data.session) setMessage('Проверьте почту и подтвердите регистрацию по ссылке.')

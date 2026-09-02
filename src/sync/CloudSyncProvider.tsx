@@ -94,7 +94,12 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
         .from('family_members').select('family_id, role').eq('user_id', user!.id)
       if (membershipError) throw membershipError
       const activeFamilyId = localStorage.getItem(`skryga-active-family:${user!.id}`)
-      const membership = memberships?.find(item => item.family_id === activeFamilyId) ?? memberships?.[0]
+      // A new account initially owns a private family. After it accepts an invite,
+      // prefer the shared membership even if the browser lost its local marker.
+      const sharedMembership = memberships?.find(item => item.role === 'member')
+      const membership = sharedMembership
+        ?? memberships?.find(item => item.family_id === activeFamilyId)
+        ?? memberships?.[0]
       if (!membership) throw new Error('No family membership found')
       localStorage.setItem(`skryga-active-family:${user!.id}`, membership.family_id)
       if (cancelled) return
