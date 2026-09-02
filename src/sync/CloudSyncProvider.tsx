@@ -23,9 +23,13 @@ interface SyncContextValue {
   role: 'owner' | 'member' | null
   status: SyncStatus
   lastSyncedAt: Date | null
+  memberCount: number
+  errorMessage: string | null
 }
 
-const SyncContext = createContext<SyncContextValue>({ familyId: null, role: null, status: 'idle', lastSyncedAt: null })
+const SyncContext = createContext<SyncContextValue>({
+  familyId: null, role: null, status: 'idle', lastSyncedAt: null, memberCount: 0, errorMessage: null,
+})
 
 function withoutLocalId<T extends { id?: number }>(record: T): Record<string, unknown> {
   const { id: _localId, ...payload } = record
@@ -77,9 +81,12 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<'owner' | 'member' | null>(null)
   const [status, setStatus] = useState<SyncStatus>('idle')
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
+  const [memberCount, setMemberCount] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [syncReady, setSyncReady] = useState(false)
   const initialized = useRef(false)
   const applyingRemote = useRef(false)
+  const knownRemoteIds = useRef(new Set<string>())
 
   const snapshotsReady = [transactions, savingsGoals, pensionFunds, budgetLimits, settings].every(Boolean)
 
@@ -90,6 +97,7 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
 
     async function initialize() {
       setStatus('syncing')
+      setErrorMessage(null)
       const { data: memberships, error: membershipError } = await supabase!
         .from('family_members').select('family_id, role').eq('user_id', user!.id)
       if (membershipError) throw membershipError
@@ -105,6 +113,11 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       setFamilyId(membership.family_id)
       setRole(membership.role)
+
+      const { count, error: countError } = await supabase!
+        .from('family_members').select('*', { count: 'exact', head: true }).eq('family_id', membership.family_id)
+      if (countError) throw countError
+      setMemberCount(count ?? 0)
 
       const { data: remoteRecords, error: recordsError } = await supabase!
         .from('cloud_records').select('*').eq('family_id', membership.family_id)
@@ -122,6 +135,7 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
           })
         }
         for (const record of (remoteRecords ?? []) as CloudRecord[]) await applyCloudRecord(record)
+        knownRemoteIds.current = new Set((remoteRecords ?? []).map(record => record.id))
         localStorage.setItem(syncMarker, new Date().toISOString())
       } finally {
         applyingRemote.current = false
@@ -135,9 +149,14 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
           try {
             if (change.eventType === 'DELETE') {
               const oldRecord = change.old as Partial<CloudRecord>
-              if (oldRecord.id && oldRecord.entity_type) await removeCloudRecord(oldRecord.entity_type, oldRecord.id)
+              if (oldRecord.id && oldRecord.entity_type) {
+                knownRemoteIds.current.delete(oldRecord.id)
+                await removeCloudRecord(oldRecord.entity_type, oldRecord.id)
+              }
             } else {
-              await applyCloudRecord(change.new as CloudRecord)
+              const newRecord = change.new as CloudRecord
+              knownRemoteIds.current.add(newRecord.id)
+              await applyCloudRecord(newRecord)
             }
           } finally {
             applyingRemote.current = false
@@ -153,12 +172,14 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     initialize().catch(error => {
       console.error('Cloud sync initialization failed:', error)
       setStatus('error')
+      setErrorMessage('Не удалось подключиться к общему семейному счёту.')
     })
     return () => {
       cancelled = true
       if (channel) void supabase!.removeChannel(channel)
       initialized.current = false
       setSyncReady(false)
+      knownRemoteIds.current.clear()
     }
   }, [snapshotsReady, user])
 
@@ -166,13 +187,20 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
     if (!supabase || !user || !familyId || !syncReady || !initialized.current || applyingRemote.current || !snapshotsReady) return
     const timer = window.setTimeout(async () => {
       setStatus('syncing')
+      setErrorMessage(null)
       try {
+        // Read IndexedDB directly after the debounce. React snapshots can still
+        // contain the state from before an incoming Realtime update.
+        const [currentTransactions, currentSavingsGoals, currentPensionFunds, currentBudgetLimits, currentSettings] = await Promise.all([
+          db.transactions.toArray(), db.savingsGoals.toArray(), db.pensionFunds.toArray(),
+          db.budgetLimits.toArray(), db.settings.toArray(),
+        ])
         const localRecords = [
-          ...(transactions ?? []).map(item => ({ entity_type: 'transaction' as const, item })),
-          ...(savingsGoals ?? []).map(item => ({ entity_type: 'savings_goal' as const, item })),
-          ...(pensionFunds ?? []).map(item => ({ entity_type: 'pension_fund' as const, item })),
-          ...(budgetLimits ?? []).map(item => ({ entity_type: 'budget_limit' as const, item })),
-          ...(settings ?? []).map(item => ({ entity_type: 'settings' as const, item })),
+          ...currentTransactions.map(item => ({ entity_type: 'transaction' as const, item })),
+          ...currentSavingsGoals.map(item => ({ entity_type: 'savings_goal' as const, item })),
+          ...currentPensionFunds.map(item => ({ entity_type: 'pension_fund' as const, item })),
+          ...currentBudgetLimits.map(item => ({ entity_type: 'budget_limit' as const, item })),
+          ...currentSettings.map(item => ({ entity_type: 'settings' as const, item })),
         ].filter(entry => entry.item.cloudId)
 
         if (localRecords.length) {
@@ -190,22 +218,31 @@ export function CloudSyncProvider({ children }: { children: React.ReactNode }) {
         const localIds = new Set(localRecords.map(entry => entry.item.cloudId!))
         const { data: remoteIds, error: remoteError } = await supabase!.from('cloud_records').select('id').eq('family_id', familyId)
         if (remoteError) throw remoteError
-        const removedIds = (remoteIds ?? []).map(record => record.id).filter(id => !localIds.has(id))
+        // Delete only records previously observed by this device. A record newly
+        // created by the other account must never be deleted because a stale
+        // React snapshot did not contain it yet.
+        const removedIds = (remoteIds ?? []).map(record => record.id)
+          .filter(id => knownRemoteIds.current.has(id) && !localIds.has(id))
         if (removedIds.length) {
           const { error } = await supabase!.from('cloud_records').delete().eq('family_id', familyId).in('id', removedIds)
           if (error) throw error
         }
+        knownRemoteIds.current = new Set(
+          [...(remoteIds ?? []).map(record => record.id), ...localIds].filter(id => !removedIds.includes(id))
+        )
         setStatus('synced')
         setLastSyncedAt(new Date())
       } catch (error) {
         console.error('Cloud sync failed:', error)
         setStatus('error')
+        setErrorMessage('Изменения сохранены на устройстве, но ещё не отправлены в облако.')
       }
     }, 800)
     return () => window.clearTimeout(timer)
   }, [budgetLimits, familyId, pensionFunds, savingsGoals, settings, snapshotsReady, syncReady, transactions, user])
 
-  const context = useMemo(() => ({ familyId, role, status, lastSyncedAt }), [familyId, lastSyncedAt, role, status])
+  const context = useMemo(() => ({ familyId, role, status, lastSyncedAt, memberCount, errorMessage }),
+    [errorMessage, familyId, lastSyncedAt, memberCount, role, status])
   return <SyncContext.Provider value={context}>{children}</SyncContext.Provider>
 }
 

@@ -373,7 +373,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 export default function Settings() {
   const { user } = useAuth()
-  const { familyId, role, status: syncStatus, lastSyncedAt } = useCloudSync()
+  const { familyId, role, status: syncStatus, lastSyncedAt, memberCount, errorMessage: syncError } = useCloudSync()
   const settings = useLiveQuery(() => db.settings.toArray().then(r => r[0]), [])
   const limits = useLiveQuery(() => db.budgetLimits.toArray(), [])
 
@@ -558,16 +558,19 @@ export default function Settings() {
   async function handleInvite() {
     if (!supabase || !user || !familyId || !inviteEmail.trim()) return
     setInviteMessage('')
-    const { data, error } = await supabase.from('family_invitations').insert({
-      family_id: familyId,
-      email: inviteEmail.trim().toLowerCase(),
-      invited_by: user.id,
-    }).select('token').single()
+    const { data, error } = await supabase.rpc('create_family_invitation', {
+      invitee_email: inviteEmail.trim().toLowerCase(),
+    })
     if (error) {
-      setInviteMessage('Не удалось создать приглашение.')
+      const message = error.message.toLowerCase()
+      setInviteMessage(message.includes('already has two')
+        ? 'К семье уже подключены два аккаунта.'
+        : message.includes('own account')
+          ? 'Введите email второго человека, а не свой.'
+          : 'Не удалось создать приглашение. Проверьте email.')
       return
     }
-    const inviteUrl = `${window.location.origin}/?invite=${data.token}`
+    const inviteUrl = `${window.location.origin}/?invite=${data}`
     try {
       await navigator.clipboard.writeText(inviteUrl)
       setInviteMessage('Ссылка скопирована. Отправьте её члену семьи.')
@@ -591,6 +594,8 @@ export default function Settings() {
             <SettingsRow icon={<Cloud size={18} color={syncStatus === 'error' ? '#FF453A' : '#30A46C'} />}
               label="Облачная синхронизация"
               value={syncStatus === 'syncing' ? 'Синхронизация…' : syncStatus === 'error' ? 'Ошибка' : lastSyncedAt ? 'Включена' : 'Подключение…'} />
+            <SettingsRow icon={<UserRound size={18} color="#2D6CDF" />} label="Семейные аккаунты" value={`${memberCount} из 2`} />
+            {syncError && <p className="px-4 py-3 text-xs text-expense bg-red-50">{syncError}</p>}
             {role === 'owner' && (
               <div className="px-4 py-4 border-b border-black/5">
                 <div className="flex items-center gap-2 mb-2">
